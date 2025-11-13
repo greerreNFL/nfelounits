@@ -1,0 +1,10 @@
+
+## local ##
+.env
+/local
+.cursor
+
+## system ##
+*.DS_Store
+.DS_Store
+__pycache__/

@@ -1,0 +1,6 @@
+# Ignore all CSV files in this directory
+*.csv
+
+# But keep the .gitkeep file
+!.gitkeep
+
