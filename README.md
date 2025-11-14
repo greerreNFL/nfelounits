@@ -258,6 +258,7 @@ nfelounits/
 │   ├── Team.py            # Team container with units
 │   ├── Unit.py            # Individual unit tracking
 │   ├── LeagueBaseline.py  # League-wide EPA tracking
+│   ├── GameContext.py     # Game context adjustments
 │   └── Types.py           # Enum definitions
 ├── Optimizer/
 │   ├── ConfigOptimizer.py # Parameter optimization
@@ -266,5 +267,6 @@ nfelounits/
 │   └── UnitGrader.py      # Performance evaluation
 ├── Utilities/
 │   └── IdConverters.py    # ID format conversion helpers
+│   └── CurveUtils.py      # Activation funcs for adjs
 └── config.json            # Default model parameters
 ```

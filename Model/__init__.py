@@ -9,6 +9,7 @@ from .Unit import Unit
 from .Team import Team
 from .LeagueBaseline import LeagueBaseline
 from .UnitModel import UnitModel
+from .GameContext import GameContext
 
 __all__ = [
     'UnitType',
@@ -16,5 +17,6 @@ __all__ = [
     'Unit',
     'Team',
     'LeagueBaseline',
-    'UnitModel'
+    'UnitModel',
+    'GameContext'
 ]

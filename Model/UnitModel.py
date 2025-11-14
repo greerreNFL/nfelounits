@@ -11,6 +11,7 @@ from .Types import UnitType, Side
 from .Unit import Unit
 from .Team import Team
 from .LeagueBaseline import LeagueBaseline
+from .GameContext import GameContext
 
 
 class UnitModel:
@@ -75,6 +76,13 @@ class UnitModel:
         ## get QB adjustments ##
         home_qb_adj = row['home_qb_adj']
         away_qb_adj = row['away_qb_adj']
+        ## create game context for weather adjustments ##
+        game_context = GameContext(
+            game_id=row['game_id'],
+            config=self.config,
+            temp=row.get('temp'),
+            wind=row.get('wind')
+        )
         ## create records and access values ##
         ## HOME ##
         home_game_record = {
@@ -120,12 +128,15 @@ class UnitModel:
             away_off_unit = getattr(away_team, f'{unit_type}_off')
             ## get league average for this unit type ##
             league_avg = self.league_baseline.get_avg(unit_type, row['season'])
+            ## get weather adjustment for this unit type ##
+            weather_adj = game_context.weather_adj(unit_type)
             ## calculate expected EPA before updating ##
             home_off_expected = home_off_unit.get_expected_epa(
                 opponent_value=away_def_unit.value,
                 hfa_base=row['hfa_base'],
                 home_qb_adj=row['home_qb_adj'],
                 away_qb_adj=row['away_qb_adj'],
+                weather_adj=weather_adj,
                 is_home=True,
                 league_avg=league_avg
             )
@@ -134,6 +145,7 @@ class UnitModel:
                 hfa_base=row['hfa_base'],
                 home_qb_adj=row['home_qb_adj'],
                 away_qb_adj=row['away_qb_adj'],
+                weather_adj=weather_adj,
                 is_home=True,
                 league_avg=league_avg
             )
@@ -142,6 +154,7 @@ class UnitModel:
                 hfa_base=row['hfa_base'],
                 home_qb_adj=row['away_qb_adj'],
                 away_qb_adj=row['home_qb_adj'],
+                weather_adj=weather_adj,
                 is_home=False,
                 league_avg=league_avg
             )
@@ -150,6 +163,7 @@ class UnitModel:
                 hfa_base=row['hfa_base'],
                 home_qb_adj=row['away_qb_adj'],
                 away_qb_adj=row['home_qb_adj'],
+                weather_adj=weather_adj,
                 is_home=False,
                 league_avg=league_avg
             )
@@ -169,6 +183,7 @@ class UnitModel:
                 hfa_base=row['hfa_base'],
                 home_qb_adj=row['home_qb_adj'],
                 away_qb_adj=row['away_qb_adj'],
+                weather_adj=weather_adj,
                 season=row['season'],
                 coach=row['home_coach'],
                 is_home=True,
@@ -180,6 +195,7 @@ class UnitModel:
                 hfa_base=row['hfa_base'],
                 home_qb_adj=row['home_qb_adj'],
                 away_qb_adj=row['away_qb_adj'],
+                weather_adj=weather_adj,
                 season=row['season'],
                 coach=row['home_coach'],
                 is_home=True,
@@ -191,6 +207,7 @@ class UnitModel:
                 hfa_base=row['hfa_base'],
                 home_qb_adj=row['away_qb_adj'],
                 away_qb_adj=row['home_qb_adj'],
+                weather_adj=weather_adj,
                 season=row['season'],
                 coach=row['away_coach'],
                 is_home=False,
@@ -202,6 +219,7 @@ class UnitModel:
                 hfa_base=row['hfa_base'],
                 home_qb_adj=row['away_qb_adj'],
                 away_qb_adj=row['home_qb_adj'],
+                weather_adj=weather_adj,
                 season=row['season'],
                 coach=row['away_coach'],
                 is_home=False,

@@ -124,5 +124,41 @@
         "description": "Offseason reversion rate for league-wide special teams EPA average",
         "opti_min": 0.0,
         "opti_max": 1.0
+    },
+    "pass_wind_disc_height": {
+        "value": 4.96,
+        "description": "Maximum EPA reduction for wind on passing units",
+        "opti_min": 0.0,
+        "opti_max": 10.0
+    },
+    "pass_temp_disc_height": {
+        "value": 2.0,
+        "description": "Maximum EPA reduction for cold temperature on passing units",
+        "opti_min": 0.0,
+        "opti_max": 7.0
+    },
+    "rush_wind_disc_height": {
+        "value": 0.256,
+        "description": "Maximum EPA reduction for wind on rushing units",
+        "opti_min": 0.0,
+        "opti_max": 2.0
+    },
+    "rush_temp_disc_height": {
+        "value": 0.0,
+        "description": "Maximum EPA reduction for cold temperature on rushing units",
+        "opti_min": 0.0,
+        "opti_max": 7.0
+    },
+    "st_wind_disc_height": {
+        "value": 0.86,
+        "description": "Maximum EPA reduction for wind on special teams units",
+        "opti_min": 0.0,
+        "opti_max": 10.0
+    },
+    "st_temp_disc_height": {
+        "value": 0.0,
+        "description": "Maximum EPA reduction for cold temperature on special teams units",
+        "opti_min": 0.0,
+        "opti_max": 7.0
     }
 }

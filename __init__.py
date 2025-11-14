@@ -7,11 +7,11 @@ play-by-play data. Uses EWMA (Exponentially Weighted Moving Average) updates
 with offseason regression.
 '''
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 ## import main classes for easy access ##
 from .Data import DataLoader, DataSplitter
-from .Model import UnitType, Unit, Team, UnitModel
+from .Model import UnitType, Unit, Team, UnitModel, GameContext
 from .Performance import UnitGrader
 from .Optimizer import ModelConfig, ModelParam, ConfigOptimizer
 
@@ -24,6 +24,7 @@ __all__ = [
     'Unit',
     'Team',
     'UnitModel',
+    'GameContext',
     ## performance classes ##
     'UnitGrader',
     ## optimizer classes ##

@@ -226,7 +226,7 @@ class DataLoader:
         meta = self.games[[
             'game_id', 'temp', 'wind',
             'home_coach', 'away_coach',
-            'result'
+            'result', 'total', 'spread_line', 'total_line'
         ]].copy()
         result = pd.merge(
             games,

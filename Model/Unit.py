@@ -30,6 +30,7 @@ class Unit:
         observed_epa: float, opponent_value: float,
         ## adj values ##
         hfa_base: float, home_qb_adj: float, away_qb_adj: float,
+        weather_adj: float,
         ## state values ##
         season: int, coach: str,
         ## determine usage ##
@@ -45,6 +46,7 @@ class Unit:
         * hfa_base: Home field advantage base value
         * home_qb_adj: Home team QB adjustment
         * away_qb_adj: Away team QB adjustment
+        * weather_adj: Weather adjustment (negative value that reduces expected EPA)
         * season: Season year
         * is_home: Whether this unit's team is home
         * league_avg: League-wide average EPA for this unit type
@@ -72,13 +74,13 @@ class Unit:
         ## calculate opponent-adjusted value ##
         if self.side == 'off':
             observed_performance = (
-                observed_epa - (qb_adj + hfa_adj) + ## observed value adjusted for QB and HFA
+                observed_epa - (qb_adj + hfa_adj - weather_adj) + ## observed value adjusted for QB, HFA, and weather
                 opponent_value - ## adjust for opponent difficulty (good defense = positive, makes this harder)
                 league_avg ## subtract league average to center around 0
             )
         else:  ## def ##
             observed_performance = (
-                opponent_value + league_avg + (opp_qb_adj - hfa_adj) - ## expected absolute EPA = opponent relative value + league avg + adjs
+                opponent_value + league_avg + (opp_qb_adj - hfa_adj - weather_adj) - ## expected absolute EPA = opponent relative value + league avg + adjs
                 observed_epa ## subtract observed absolute EPA to get defensive performance relative to league average
             )
         ## update value ##
@@ -128,6 +130,7 @@ class Unit:
         hfa_base: float,
         home_qb_adj: float,
         away_qb_adj: float,
+        weather_adj: float,
         is_home: bool,
         league_avg: float
     ) -> float:
@@ -142,6 +145,7 @@ class Unit:
         * hfa_base: Home field advantage base value
         * home_qb_adj: Home team QB adjustment
         * away_qb_adj: Away team QB adjustment
+        * weather_adj: Weather adjustment (negative value that reduces expected EPA)
         * is_home: Whether this unit's team is home
         * league_avg: League-wide average EPA for this unit type
         
@@ -163,13 +167,13 @@ class Unit:
         if self.side == 'off':
             expected = (
                 self.value + ## team's unit value (relative to league avg)
-                (qb_adj + hfa_adj) - ## add team advantages
+                (qb_adj + hfa_adj - weather_adj) - ## add team advantages, subtract weather penalty
                 opponent_value + ## subtract opponent defense (good defense = positive, so subtract)
                 league_avg ## add back league average since unit value is relative
             )
         else:  ## def ##
             expected = (
-                opponent_value + (opp_qb_adj - hfa_adj) + ## opponent's expected EPA given their advantages
+                opponent_value + (opp_qb_adj - hfa_adj - weather_adj) + ## opponent's expected EPA given their advantages and weather
                 league_avg ## add back league average since opponent unit value is relative
             )
         return expected
