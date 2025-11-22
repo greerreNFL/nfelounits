@@ -5,11 +5,15 @@ Classes for model configuration and parameter optimization.
 '''
 
 from .ModelConfig import ModelConfig, ModelParam
-from .ConfigOptimizer import ConfigOptimizer
+from .BaseOptimizer import BaseOptimizer
+from .UnitOptimizer import UnitOptimizer
+from .EloOptimizer import EloOptimizer
 
 __all__ = [
     'ModelConfig',
     'ModelParam',
-    'ConfigOptimizer'
+    'BaseOptimizer',
+    'UnitOptimizer',
+    'EloOptimizer'
 ]
 

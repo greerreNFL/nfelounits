@@ -1,59 +1,61 @@
 '''
-ConfigOptimizer Class
+BaseOptimizer Abstract Class
 
-Optimizer for tuning model configuration parameters to minimize prediction error.
+Base class for all optimizers that provides common functionality for parameter optimization.
+Subclasses only need to implement the objective function and metric name.
 '''
 
+from abc import ABC, abstractmethod
 from typing import List, Tuple, Any, Optional, Dict
 import pathlib
 import time
 import datetime
 import pandas as pd
-import numpy
+import numpy as np
 from scipy.optimize import minimize
 
 from .ModelConfig import ModelConfig, ModelParam
 from ..Model import UnitModel
 
 
-class ConfigOptimizer:
+class BaseOptimizer(ABC):
     '''
-    Optimizer that returns the optimal value for each parameter in the model config
+    Abstract base class for optimizers that tune model configuration parameters.
+    
+    Subclasses must:
+    - Define config_section as a class attribute (e.g., 'unit_config', 'elo_config')
+    - Implement objective(x: List[float]) -> float: Calculate the optimization objective
+    - Implement get_metric_name() -> str: Return the name of the metric being optimized
     '''
+    config_section: str = None  # Must be set by subclasses
+    
     def __init__(self,
         data: pd.DataFrame,
         config: ModelConfig,
-        objective_name: str = 'avg_mae',
         tol: float = 0.000001,
         step: float = 0.00001,
         method: str = 'SLSQP',
         subset: List[str] = [],
         subset_name: str = 'subset',
-        obj_normalization: float = 5.0,
         randomize_bgs: bool = False,
-        first_season_to_score: Optional[int] = None,
         run_id: Optional[str] = None
     ):
         '''
         Initialize optimizer
         
         Parameters:
-        * data: Game-level DataFrame from DataLoader.unit_games
+        * data: Full game-level DataFrame with 'data_set' column from DataSplitter
         * config: ModelConfig object with parameters to optimize
-        * objective_name: Name of objective function (default 'avg_mae')
         * tol: Tolerance for optimization convergence
         * step: Step size for numerical gradient
         * method: Optimization method (default 'SLSQP')
-        * subset: List of parameter names to optimize (empty = all)
+        * subset: List of parameter names to optimize (empty = all params in config_section)
         * subset_name: Name for this subset (for saving results)
-        * obj_normalization: Normalization factor for objective function
         * randomize_bgs: Whether to randomize initial guesses
-        * first_season_to_score: First season to include in objective (excludes earlier seasons)
         * run_id: Unique identifier for this optimization run (defaults to timestamp if not provided)
         '''
         self.data: pd.DataFrame = data
         self.config: ModelConfig = config
-        self.objective_name: str = objective_name
         self.subset: List[str] = subset
         self.subset_name: str = subset_name
         self.run_id: str = run_id if run_id else datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -64,9 +66,7 @@ class ConfigOptimizer:
         self.tol: float = tol
         self.step: float = step
         self.method: str = method
-        self.obj_normalization: float = obj_normalization
         self.randomize_bgs: bool = randomize_bgs
-        self.first_season_to_score: Optional[int] = first_season_to_score
         self.init_features()
         ## in-optimization data ##
         self.round_number: int = 0
@@ -84,93 +84,85 @@ class ConfigOptimizer:
         '''Denormalize a parameter from a value between 0 and 1'''
         return value * (param.opti_max - param.opti_min) + param.opti_min
     
-    def denormalize_optimizer_values(self, x: List[float]) -> Dict[str, float]:
-        '''Denormalizes an optimizer values list into a config dictionary'''
+    def denormalize_optimizer_values(self, x: List[float]) -> Dict[str, Any]:
+        '''Denormalizes an optimizer values list into a nested config dictionary'''
         ## start with a copy of the config ##
         local_config = self.config.values.copy()
         ## update the config with the new values that are being optimized ##
-        for i, k in enumerate(x):
-            local_config[self.features[i]] = self.denormalize_param(k, self.config.params[self.features[i]])
+        for i, feature in enumerate(self.features):
+            denormalized_value = self.denormalize_param(x[i], self.config.params[feature])
+            ## handle both nested (section.param) and flat (param) naming ##
+            if '.' in feature:
+                section, param_name = feature.split('.', 1)
+                if section not in local_config:
+                    local_config[section] = {}
+                local_config[section][param_name] = denormalized_value
+            else:
+                ## flat parameter name ##
+                local_config[feature] = denormalized_value
         return local_config
     
     def init_features(self):
         '''Initialize the features, bgs, and bounds for the optimizer'''
-        for k, v in self.config.params.items():
-            if len(self.subset) > 0 and k not in self.subset:
-                continue
-            self.features.append(k)
-            self.bgs.append(
-                self.normalize_param(v.value, v) if not self.randomize_bgs
-                else numpy.random.uniform(0, 1)
-            )
-            self.bounds.append((0,1)) ## all features are normalized ##
+        ## if subset is empty, use all parameters from this optimizer's config section ##
+        if len(self.subset) == 0:
+            if self.config_section is None:
+                raise ValueError(f"{self.__class__.__name__} must define config_section class attribute")
+            params_to_optimize = [k for k in self.config.params.keys() 
+                                 if k.startswith(f'{self.config_section}.')]
+        else:
+            params_to_optimize = self.subset
+        
+        for k in params_to_optimize:
+            if k in self.config.params:
+                param = self.config.params[k]
+                self.features.append(k)
+                self.bgs.append(
+                    self.normalize_param(param.value, param) if not self.randomize_bgs
+                    else np.random.uniform(0, 1)
+                )
+                self.bounds.append((0, 1))  ## all features are normalized ##
     
+    @abstractmethod
     def objective(self, x: List[float]) -> float:
-        '''Objective function for the optimizer'''
-        ## increment the round number ##
-        self.round_number += 1
-        ## create denormalized config ##
-        denormalized_dict = self.denormalize_optimizer_values(x)
-        ## create the model ##
-        model = UnitModel(
-            self.data,
-            denormalized_dict
-        )
-        ## run the model ##
-        model.run()
-        ## get results ##
-        results = model.get_results_df()
-        ## filter to seasons to score ##
-        if self.first_season_to_score is not None:
-            results = results[results['season'] >= self.first_season_to_score].copy()
-        ## calculate MAE for each unit ##
-        mae_values = {}
-        for unit in ['pass', 'rush', 'st']:
-            for side in ['off', 'def']:
-                unit_name = f'{unit}_{side}'
-                expected_col = f'{unit}_{side}_expected'
-                observed_col = f'{unit}_{side}_observed'
-                if expected_col in results.columns and observed_col in results.columns:
-                    mae = (results[expected_col] - results[observed_col]).abs().mean()
-                    mae_values[f'mae_{unit_name}'] = mae
-        ## calculate average MAE across all units ##
-        avg_mae = sum(mae_values.values()) / len(mae_values)
-        ## create scored record ##
-        scored_record = {
-            'round': self.round_number,
-            'avg_mae': avg_mae,
-            **mae_values,
-            **denormalized_dict
-        }
-        ## add the record to the optimization records ##
-        self.optimization_records.append(scored_record)
-        ## save the record if it is a new best, or if it an interval of 100 rounds ##
-        save_record = False
-        if self.best_obj is None:
-            self.best_obj = avg_mae
-            save_record = True
-        elif avg_mae < self.best_obj:
-            self.best_obj = avg_mae
-            save_record = True
-        if self.round_number % 100 == 0:
-            save_record = True
-        if save_record:
-            df = pd.DataFrame(self.optimization_records)
-            output_dir = pathlib.Path(__file__).parent.resolve() / 'runs'
-            output_dir.mkdir(parents=True, exist_ok=True)
-            df.to_csv(f'{output_dir}/{self.run_id}_{self.subset_name}_inflight_round.csv', index=False)
-        ## return normalized objective ##
-        return avg_mae / self.obj_normalization
+        '''
+        Objective function for the optimizer - must be implemented by subclasses
+        
+        This method should:
+        1. Increment self.round_number
+        2. Create and run the model with denormalized parameters
+        3. Calculate the optimization metric
+        4. Store the record in self.optimization_records
+        5. Save records periodically and when a new best is found
+        6. Return the metric value to be minimized
+        
+        Parameters:
+        * x: Normalized parameter values
+        
+        Returns:
+        * Objective value to minimize
+        '''
+        pass
+    
+    @abstractmethod
+    def get_metric_name(self) -> str:
+        '''
+        Return the name of the metric being optimized
+        
+        This is used for sorting records to find the best result.
+        Examples: 'train_log_loss', 'avg_mae'
+        '''
+        pass
     
     def update_config(self, x: List[float]):
         '''Update the config with the new values and save the result'''
         ## create the updated config ##
-        updated_config = self.denormalize_optimizer_values(x)
-        ## apply additional rounding ##
-        for k, v in updated_config.items():
-            updated_config[k] = round(v, 6)
+        updated_values = {}
+        for i, feature in enumerate(self.features):
+            denormalized_value = self.denormalize_param(x[i], self.config.params[feature])
+            updated_values[feature] = round(denormalized_value, 6)
         ## update the config ##
-        self.config.update_config(updated_config)
+        self.config.update_config(updated_values)
         ## save to package config file ##
         self.config.to_file()
     
@@ -189,8 +181,8 @@ class ConfigOptimizer:
             bounds=self.bounds,
             method=self.method,
             options={
-                'ftol' : self.tol,
-                'eps' : self.step
+                'ftol': self.tol,
+                'eps': self.step
             }
         )
         ## end timer ##
@@ -198,10 +190,13 @@ class ConfigOptimizer:
         ## save the solution ##
         self.solution = solution
         ## create an optimization result object ##
-        ## values ##
-        optimal_config = self.denormalize_optimizer_values(solution.x)
-        ## add objective function reached ##
-        self.optimization_results['avg_mae'] = solution.fun * self.obj_normalization
+        optimal_config = {}
+        for i, feature in enumerate(self.features):
+            denormalized_value = self.denormalize_param(solution.x[i], self.config.params[feature])
+            optimal_config[feature] = denormalized_value
+        ## add objective function reached and runtime ##
+        metric_name = self.get_metric_name()
+        self.optimization_results[metric_name] = solution.fun
         self.optimization_results['runtime'] = end_time - start_time
         ## extend the optimization results with the optimal config ##
         self.optimization_results = self.optimization_results | optimal_config
@@ -218,8 +213,9 @@ class ConfigOptimizer:
     def get_best_record(self) -> dict:
         '''Gets the best record from the stored optimization records'''
         df = pd.DataFrame(self.optimization_records)
+        metric_name = self.get_metric_name()
         return df.sort_values(
-            by=['avg_mae'],
+            by=[metric_name],
             ascending=[True]
         ).reset_index(drop=True).to_dict(orient='records')[0]
 

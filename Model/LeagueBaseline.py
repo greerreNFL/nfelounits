@@ -43,7 +43,7 @@ class LeagueBaseline:
         '''
         ## get smoothing factor ##
         sf_param = f'league_{unit_type}_sf'
-        sf = self.params[sf_param]
+        sf = self.params['unit_config'][sf_param]
         
         ## update the appropriate average ##
         if unit_type == 'pass':
@@ -65,9 +65,9 @@ class LeagueBaseline:
         since EPA is theoretically centered at 0
         '''
         ## get reversion rates ##
-        pass_reversion = self.params['league_pass_reversion']
-        rush_reversion = self.params['league_rush_reversion']
-        st_reversion = self.params['league_st_reversion']
+        pass_reversion = self.params['unit_config']['league_pass_reversion']
+        rush_reversion = self.params['unit_config']['league_rush_reversion']
+        st_reversion = self.params['unit_config']['league_st_reversion']
         
         ## regress each average ##
         self.pass_avg = (1 - pass_reversion) * self.pass_avg + pass_reversion * self.pass_avg_lt

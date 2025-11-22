@@ -12,6 +12,8 @@ from .Unit import Unit
 from .Team import Team
 from .LeagueBaseline import LeagueBaseline
 from .GameContext import GameContext
+from .EloTranslator import EloTranslator
+from ..Utilities import calculate_win_probability
 
 
 class UnitModel:
@@ -23,7 +25,7 @@ class UnitModel:
         
         Parameters:
         * games: Flattened team-game DataFrame from DataLoader.flatten_to_team_game()
-        * config: Dictionary with smoothing factors and reversion rates for each unit
+        * config: Dictionary with nested structure {unit_config: {...}, elo_config: {...}}
         '''
         self.games = games.sort_values(['season', 'week', 'game_id']).reset_index(drop=True)
         self.config = config
@@ -31,6 +33,8 @@ class UnitModel:
         self.teams: Dict[str, Team] = {} ## dict that holds units
         self.team_game_records: List[Dict[str, Any]] = []
         self.league_baseline: LeagueBaseline = LeagueBaseline(params=config)
+        ## elo translator ##
+        self.elo_translator: EloTranslator = EloTranslator(config.get('elo_config', {}))
         ## runtime tracking ##
         self.model_runtime: float = 0.0
     
@@ -76,10 +80,11 @@ class UnitModel:
         ## get QB adjustments ##
         home_qb_adj = row['home_qb_adj']
         away_qb_adj = row['away_qb_adj']
-        ## create game context for weather adjustments ##
+        ## create game context for weather and HFA adjustments ##
         game_context = GameContext(
             game_id=row['game_id'],
             config=self.config,
+            hfa_base=row['hfa_base'],
             temp=row.get('temp'),
             wind=row.get('wind')
         )
@@ -92,6 +97,7 @@ class UnitModel:
             'team': row['home_team'],
             'opponent': row['away_team'],
             'is_home': True,
+            'result': row['result'],
             'qb_adj': home_qb_adj,
             'coach': row['home_coach'],
             ## get values and handle regression ##
@@ -110,6 +116,7 @@ class UnitModel:
             'team': row['away_team'],
             'opponent': row['home_team'],
             'is_home': False,
+            'result': -row['result'],  ## flip sign for away team perspective
             'qb_adj': away_qb_adj,
             'coach': row['away_coach'],
             ## get values and handle regression ##
@@ -120,6 +127,31 @@ class UnitModel:
             'rush_def_value_pre': away_team.rush_def.get_value(row['season'], row['away_coach']),
             'st_def_value_pre': away_team.st_def.get_value(row['season'], row['away_coach']),
         }
+        ## Calculate elos ##
+        home_elo = self.elo_translator.translate_to_elo(home_team)
+        away_elo = self.elo_translator.translate_to_elo(away_team)
+        ## Calculate context adjustments (weather only) ##
+        home_context_adj = self.elo_translator.calculate_context_adj(home_team, game_context)
+        away_context_adj = self.elo_translator.calculate_context_adj(away_team, game_context)
+        ## Calculate elo diff with QB and HFA ##
+        elo_diff = (
+            home_elo + home_context_adj +
+            home_qb_adj + row['hfa_base'] * 25
+        ) - (
+            away_elo + away_context_adj +
+            away_qb_adj
+        )
+        ## Calculate win probability ##
+        home_win_prob = calculate_win_probability(elo_diff)
+        ## Store elo values in records ##
+        home_game_record['elo'] = home_elo
+        home_game_record['context_adj'] = home_context_adj
+        home_game_record['win_prob'] = home_win_prob
+        away_game_record['elo'] = away_elo
+        away_game_record['context_adj'] = away_context_adj
+        away_game_record['win_prob'] = 1-home_win_prob
+
+        ## Update units ##
         for unit_type in ['pass', 'rush', 'st']:
             ## access units from team objects ##
             home_off_unit = getattr(home_team, f'{unit_type}_off')
@@ -128,12 +160,14 @@ class UnitModel:
             away_off_unit = getattr(away_team, f'{unit_type}_off')
             ## get league average for this unit type ##
             league_avg = self.league_baseline.get_avg(unit_type, row['season'])
-            ## get weather adjustment for this unit type ##
+            ## get adjustments for this unit type ##
             weather_adj = game_context.weather_adj(unit_type)
+            home_hfa_adj = game_context.hfa_adj(unit_type, is_home=True)
+            away_hfa_adj = game_context.hfa_adj(unit_type, is_home=False)
             ## calculate expected EPA before updating ##
             home_off_expected = home_off_unit.get_expected_epa(
                 opponent_value=away_def_unit.value,
-                hfa_base=row['hfa_base'],
+                hfa_adj=home_hfa_adj,
                 home_qb_adj=row['home_qb_adj'],
                 away_qb_adj=row['away_qb_adj'],
                 weather_adj=weather_adj,
@@ -142,7 +176,7 @@ class UnitModel:
             )
             home_def_expected = home_def_unit.get_expected_epa(
                 opponent_value=away_off_unit.value,
-                hfa_base=row['hfa_base'],
+                hfa_adj=home_hfa_adj,
                 home_qb_adj=row['home_qb_adj'],
                 away_qb_adj=row['away_qb_adj'],
                 weather_adj=weather_adj,
@@ -151,7 +185,7 @@ class UnitModel:
             )
             away_off_expected = away_off_unit.get_expected_epa(
                 opponent_value=home_def_unit.value,
-                hfa_base=row['hfa_base'],
+                hfa_adj=away_hfa_adj,
                 home_qb_adj=row['away_qb_adj'],
                 away_qb_adj=row['home_qb_adj'],
                 weather_adj=weather_adj,
@@ -160,7 +194,7 @@ class UnitModel:
             )
             away_def_expected = away_def_unit.get_expected_epa(
                 opponent_value=home_off_unit.value,
-                hfa_base=row['hfa_base'],
+                hfa_adj=away_hfa_adj,
                 home_qb_adj=row['away_qb_adj'],
                 away_qb_adj=row['home_qb_adj'],
                 weather_adj=weather_adj,
@@ -180,7 +214,7 @@ class UnitModel:
             home_off_unit.update(
                 observed_epa=row[f'home_{unit_type}_epa'], ## observed EPA
                 opponent_value=away_def_unit.value, ## expected value
-                hfa_base=row['hfa_base'],
+                hfa_adj=home_hfa_adj,
                 home_qb_adj=row['home_qb_adj'],
                 away_qb_adj=row['away_qb_adj'],
                 weather_adj=weather_adj,
@@ -192,7 +226,7 @@ class UnitModel:
             home_def_unit.update(
                 observed_epa=row[f'away_{unit_type}_epa'], ## observed EPA
                 opponent_value=away_off_unit.value,
-                hfa_base=row['hfa_base'],
+                hfa_adj=home_hfa_adj,
                 home_qb_adj=row['home_qb_adj'],
                 away_qb_adj=row['away_qb_adj'],
                 weather_adj=weather_adj,
@@ -204,7 +238,7 @@ class UnitModel:
             away_off_unit.update(
                 observed_epa=row[f'away_{unit_type}_epa'],
                 opponent_value=home_def_unit.value,
-                hfa_base=row['hfa_base'],
+                hfa_adj=away_hfa_adj,
                 home_qb_adj=row['away_qb_adj'],
                 away_qb_adj=row['home_qb_adj'],
                 weather_adj=weather_adj,
@@ -216,7 +250,7 @@ class UnitModel:
             away_def_unit.update(
                 observed_epa=row[f'home_{unit_type}_epa'],
                 opponent_value=home_off_unit.value,
-                hfa_base=row['hfa_base'],
+                hfa_adj=away_hfa_adj,
                 home_qb_adj=row['away_qb_adj'],
                 away_qb_adj=row['home_qb_adj'],
                 weather_adj=weather_adj,

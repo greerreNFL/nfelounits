@@ -29,7 +29,7 @@ class Unit:
         ## base values ##
         observed_epa: float, opponent_value: float,
         ## adj values ##
-        hfa_base: float, home_qb_adj: float, away_qb_adj: float,
+        hfa_adj: float, home_qb_adj: float, away_qb_adj: float,
         weather_adj: float,
         ## state values ##
         season: int, coach: str,
@@ -43,7 +43,7 @@ class Unit:
         Parameters:
         * observed_epa: Actual EPA generated (off) or allowed (def) by unit in this game
         * opponent_value: Opponent unit's pre-game value for adjustment
-        * hfa_base: Home field advantage base value
+        * hfa_adj: Home field advantage adjustment (already calculated for this unit)
         * home_qb_adj: Home team QB adjustment
         * away_qb_adj: Away team QB adjustment
         * weather_adj: Weather adjustment (negative value that reduces expected EPA)
@@ -59,11 +59,7 @@ class Unit:
         '''
         ## get smoothing factor ##
         sf_param = f'{self.unit_type.value}_{self.side}_sf'
-        sf = self.params[sf_param]
-        ## calculate adjs ##
-        ## if unit is home, receive positive HFA, otherwise negative ##
-        ## divide by 2 since HFA is applied to both home and away teams ##
-        hfa_adj = hfa_base / 2 * self.params[f'{self.unit_type.value}_hfa_share'] * (1 if is_home else -1)
+        sf = self.params['unit_config'][sf_param]
         ## if pass related unit, include the QB adjustment for self and opponent
         if self.unit_type == UnitType.PASS:
             qb_adj = home_qb_adj / 25 if is_home else away_qb_adj / 25
@@ -100,7 +96,7 @@ class Unit:
         '''
         ## get reversion rate ##
         reversion_param = f'{self.unit_type.value}_{self.side}_reversion'
-        reversion_rate = self.params[reversion_param]
+        reversion_rate = self.params['unit_config'][reversion_param]
         ## regress value ##
         self.value = (1 - reversion_rate) * self.value
         ## update state ##
@@ -127,7 +123,7 @@ class Unit:
     
     def get_expected_epa(self,
         opponent_value: float,
-        hfa_base: float,
+        hfa_adj: float,
         home_qb_adj: float,
         away_qb_adj: float,
         weather_adj: float,
@@ -142,7 +138,7 @@ class Unit:
         
         Parameters:
         * opponent_value: Opponent unit's pre-game value
-        * hfa_base: Home field advantage base value
+        * hfa_adj: Home field advantage adjustment (already calculated for this unit)
         * home_qb_adj: Home team QB adjustment
         * away_qb_adj: Away team QB adjustment
         * weather_adj: Weather adjustment (negative value that reduces expected EPA)
@@ -152,10 +148,6 @@ class Unit:
         Returns:
         * Expected EPA for this unit
         '''
-        ## calculate adjs ##
-        ## if unit is home, receive positive HFA, otherwise negative ##
-        ## divide by 2 since HFA is applied to both home and away teams ##
-        hfa_adj = hfa_base / 2 * self.params[f'{self.unit_type.value}_hfa_share'] * (1 if is_home else -1)
         ## if pass related unit, include the QB adjustment for self and opponent ##
         if self.unit_type == UnitType.PASS:
             qb_adj = home_qb_adj / 25 if is_home else away_qb_adj / 25

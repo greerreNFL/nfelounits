@@ -10,6 +10,7 @@ from .Team import Team
 from .LeagueBaseline import LeagueBaseline
 from .UnitModel import UnitModel
 from .GameContext import GameContext
+from .EloTranslator import EloTranslator
 
 __all__ = [
     'UnitType',
@@ -18,5 +19,6 @@ __all__ = [
     'Team',
     'LeagueBaseline',
     'UnitModel',
-    'GameContext'
+    'GameContext',
+    'EloTranslator'
 ]
