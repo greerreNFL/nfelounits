@@ -1,23 +1,25 @@
 '''
 Team Class
 
-Container for a team's six units (3 offensive + 3 defensive).
+Container for a team's six units (3 offensive + 3 defensive) plus QB tracking.
 '''
 
 from dataclasses import dataclass
 from typing import Dict, Any, Tuple
 from .Types import UnitType, Side
 from .Unit import Unit
+from .TeamQb import TeamQb
 
 
 @dataclass
 class Team:
     '''
-    Represents a team with all offensive and defensive units
+    Represents a team with all offensive and defensive units plus QB tracking
     
-    Team has 6 total units:
+    Team has 6 units + QB tracker:
     - Pass offense, Rush offense, ST offense
     - Pass defense, Rush defense, ST defense
+    - QB tracker (expected QB value)
     '''
     team_abbr: str
     pass_off: Unit
@@ -26,11 +28,13 @@ class Team:
     pass_def: Unit
     rush_def: Unit
     st_def: Unit
+    qb: TeamQb
     
     def __post_init__(self):
-        '''Ensure all units have correct team reference'''
+        '''Ensure all units and QB have correct team reference'''
         for unit in [self.pass_off, self.rush_off, self.st_off, self.pass_def, self.rush_def, self.st_def]:
             unit.team = self.team_abbr
+        self.qb.team = self.team_abbr
     
     def get_units(self) -> Tuple[Unit, Unit, Unit, Unit, Unit, Unit]:
         '''Get all units for the team'''
@@ -55,5 +59,6 @@ class Team:
             'st_off': round(self.st_off.value, 3),
             'st_def': round(self.st_def.value, 3),
             'total_off': round(self.get_total_off_value(), 3),
-            'total_def': round(self.get_total_def_value(), 3)
+            'total_def': round(self.get_total_def_value(), 3),
+            'expected_qb_value': round(self.qb.expected_value, 3)
         }

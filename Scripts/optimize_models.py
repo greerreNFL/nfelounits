@@ -39,7 +39,9 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
             'unit_config.league_pass_sf',
             'unit_config.league_pass_reversion',
             'unit_config.pass_wind_disc_height',
-            'unit_config.pass_temp_disc_height'
+            'unit_config.pass_temp_disc_height',
+            'unit_config.pass_off_qb_reversion',
+            'unit_config.league_qb_sf',
         ],
         'rush': [
             'unit_config.rush_hfa_share',

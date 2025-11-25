@@ -10,7 +10,9 @@ import time
 from .Types import UnitType, Side
 from .Unit import Unit
 from .Team import Team
+from .TeamQb import TeamQb
 from .LeagueBaseline import LeagueBaseline
+from .LeagueQb import LeagueQb
 from .GameContext import GameContext
 from .EloTranslator import EloTranslator
 from ..Utilities import calculate_win_probability
@@ -33,6 +35,7 @@ class UnitModel:
         self.teams: Dict[str, Team] = {} ## dict that holds units
         self.team_game_records: List[Dict[str, Any]] = []
         self.league_baseline: LeagueBaseline = LeagueBaseline(params=config)
+        self.league_qb: LeagueQb = LeagueQb(params=config)
         ## elo translator ##
         self.elo_translator: EloTranslator = EloTranslator(config.get('elo_config', {}))
         ## runtime tracking ##
@@ -42,9 +45,10 @@ class UnitModel:
         '''
         Get existing team or create new one with fresh units
         
-        Creates team with 6 units:
+        Creates team with 6 units + QB tracker:
         - 3 offensive (pass, rush, st)
         - 3 defensive (pass, rush, st)
+        - QB tracker
         '''
         if team_abbr not in self.teams:
             self.teams[team_abbr] = Team(
@@ -54,7 +58,8 @@ class UnitModel:
                 st_off=Unit(unit_type=UnitType.SPECIAL_TEAMS, team=team_abbr, side='off', params=self.config),
                 pass_def=Unit(unit_type=UnitType.PASS, team=team_abbr, side='def', params=self.config),
                 rush_def=Unit(unit_type=UnitType.RUSH, team=team_abbr, side='def', params=self.config),
-                st_def=Unit(unit_type=UnitType.SPECIAL_TEAMS, team=team_abbr, side='def', params=self.config)
+                st_def=Unit(unit_type=UnitType.SPECIAL_TEAMS, team=team_abbr, side='def', params=self.config),
+                qb=TeamQb(team=team_abbr, params=self.config)
             )
         return self.teams[team_abbr]
     
@@ -77,9 +82,15 @@ class UnitModel:
         ## get team objects##
         home_team = self.get_team(row['home_team'])
         away_team = self.get_team(row['away_team'])
-        ## get QB adjustments ##
-        home_qb_adj = row['home_qb_adj']
-        away_qb_adj = row['away_qb_adj']
+        ## get QB values and names ##
+        home_qb_value = row['home_qb_value']
+        away_qb_value = row['away_qb_value']
+        home_qb_name = row['home_qb_name']
+        away_qb_name = row['away_qb_name']
+        league_qb_avg = self.league_qb.get_avg()
+        ## calculate QB adjustments (handles season rollover and updates internally) ##
+        home_qb_adj = home_team.qb.get_adjustment(home_qb_name, home_qb_value, row['season'])
+        away_qb_adj = away_team.qb.get_adjustment(away_qb_name, away_qb_value, row['season'])
         ## create game context for weather and HFA adjustments ##
         game_context = GameContext(
             game_id=row['game_id'],
@@ -98,10 +109,11 @@ class UnitModel:
             'opponent': row['away_team'],
             'is_home': True,
             'result': row['result'],
-            'qb_adj': home_qb_adj,
+            'qb_value': home_qb_value,  # actual starter value
+            'qb_adj': home_qb_adj,  # calculated adjustment
             'coach': row['home_coach'],
             ## get values and handle regression ##
-            'pass_off_value_pre': home_team.pass_off.get_value(row['season'], row['home_coach']),
+            'pass_off_value_pre': home_team.pass_off.get_value(row['season'], row['home_coach'], home_team.qb.starter_value, league_qb_avg),
             'rush_off_value_pre': home_team.rush_off.get_value(row['season'], row['home_coach']),
             'st_off_value_pre': home_team.st_off.get_value(row['season'], row['home_coach']),
             'pass_def_value_pre': home_team.pass_def.get_value(row['season'], row['home_coach']),
@@ -117,10 +129,11 @@ class UnitModel:
             'opponent': row['home_team'],
             'is_home': False,
             'result': -row['result'],  ## flip sign for away team perspective
-            'qb_adj': away_qb_adj,
+            'qb_value': away_qb_value,  # actual starter value
+            'qb_adj': away_qb_adj,  # calculated adjustment
             'coach': row['away_coach'],
             ## get values and handle regression ##
-            'pass_off_value_pre': away_team.pass_off.get_value(row['season'], row['away_coach']),
+            'pass_off_value_pre': away_team.pass_off.get_value(row['season'], row['away_coach'], away_team.qb.starter_value, league_qb_avg),
             'rush_off_value_pre': away_team.rush_off.get_value(row['season'], row['away_coach']),
             'st_off_value_pre': away_team.st_off.get_value(row['season'], row['away_coach']),
             'pass_def_value_pre': away_team.pass_def.get_value(row['season'], row['away_coach']),
@@ -168,8 +181,8 @@ class UnitModel:
             home_off_expected = home_off_unit.get_expected_epa(
                 opponent_value=away_def_unit.value,
                 hfa_adj=home_hfa_adj,
-                home_qb_adj=row['home_qb_adj'],
-                away_qb_adj=row['away_qb_adj'],
+                home_qb_adj=home_qb_adj,
+                away_qb_adj=away_qb_adj,
                 weather_adj=weather_adj,
                 is_home=True,
                 league_avg=league_avg
@@ -177,8 +190,8 @@ class UnitModel:
             home_def_expected = home_def_unit.get_expected_epa(
                 opponent_value=away_off_unit.value,
                 hfa_adj=home_hfa_adj,
-                home_qb_adj=row['home_qb_adj'],
-                away_qb_adj=row['away_qb_adj'],
+                home_qb_adj=home_qb_adj,
+                away_qb_adj=away_qb_adj,
                 weather_adj=weather_adj,
                 is_home=True,
                 league_avg=league_avg
@@ -186,8 +199,8 @@ class UnitModel:
             away_off_expected = away_off_unit.get_expected_epa(
                 opponent_value=home_def_unit.value,
                 hfa_adj=away_hfa_adj,
-                home_qb_adj=row['away_qb_adj'],
-                away_qb_adj=row['home_qb_adj'],
+                home_qb_adj=home_qb_adj,
+                away_qb_adj=away_qb_adj,
                 weather_adj=weather_adj,
                 is_home=False,
                 league_avg=league_avg
@@ -195,8 +208,8 @@ class UnitModel:
             away_def_expected = away_def_unit.get_expected_epa(
                 opponent_value=home_off_unit.value,
                 hfa_adj=away_hfa_adj,
-                home_qb_adj=row['away_qb_adj'],
-                away_qb_adj=row['home_qb_adj'],
+                home_qb_adj=home_qb_adj,
+                away_qb_adj=away_qb_adj,
                 weather_adj=weather_adj,
                 is_home=False,
                 league_avg=league_avg
@@ -215,8 +228,8 @@ class UnitModel:
                 observed_epa=row[f'home_{unit_type}_epa'], ## observed EPA
                 opponent_value=away_def_unit.value, ## expected value
                 hfa_adj=home_hfa_adj,
-                home_qb_adj=row['home_qb_adj'],
-                away_qb_adj=row['away_qb_adj'],
+                home_qb_adj=home_qb_adj,
+                away_qb_adj=away_qb_adj,
                 weather_adj=weather_adj,
                 season=row['season'],
                 coach=row['home_coach'],
@@ -227,8 +240,8 @@ class UnitModel:
                 observed_epa=row[f'away_{unit_type}_epa'], ## observed EPA
                 opponent_value=away_off_unit.value,
                 hfa_adj=home_hfa_adj,
-                home_qb_adj=row['home_qb_adj'],
-                away_qb_adj=row['away_qb_adj'],
+                home_qb_adj=home_qb_adj,
+                away_qb_adj=away_qb_adj,
                 weather_adj=weather_adj,
                 season=row['season'],
                 coach=row['home_coach'],
@@ -239,8 +252,8 @@ class UnitModel:
                 observed_epa=row[f'away_{unit_type}_epa'],
                 opponent_value=home_def_unit.value,
                 hfa_adj=away_hfa_adj,
-                home_qb_adj=row['away_qb_adj'],
-                away_qb_adj=row['home_qb_adj'],
+                home_qb_adj=away_qb_adj,
+                away_qb_adj=home_qb_adj,
                 weather_adj=weather_adj,
                 season=row['season'],
                 coach=row['away_coach'],
@@ -251,8 +264,8 @@ class UnitModel:
                 observed_epa=row[f'home_{unit_type}_epa'],
                 opponent_value=home_off_unit.value,
                 hfa_adj=away_hfa_adj,
-                home_qb_adj=row['away_qb_adj'],
-                away_qb_adj=row['home_qb_adj'],
+                home_qb_adj=away_qb_adj,
+                away_qb_adj=home_qb_adj,
                 weather_adj=weather_adj,
                 season=row['season'],
                 coach=row['away_coach'],
@@ -262,6 +275,9 @@ class UnitModel:
             ## update league baseline (twice - once for each team) ##
             self.league_baseline.update(unit_type, row[f'home_{unit_type}_epa'], row['season'])
             self.league_baseline.update(unit_type, row[f'away_{unit_type}_epa'], row['season'])
+        ## update league QB baseline ##
+        self.league_qb.update(home_qb_value)
+        self.league_qb.update(away_qb_value)
         ## update record for updated values ##
         home_game_record = home_game_record | {
             'pass_off_value_post': home_team.pass_off.value,
@@ -298,6 +314,7 @@ class UnitModel:
         self.teams = {}
         self.team_game_records = []
         self.league_baseline = LeagueBaseline(params=self.config)
+        self.league_qb = LeagueQb(params=self.config)
         ## process each game ##
         for idx, row in self.games.iterrows():
             self.process_game(row)

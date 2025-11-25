@@ -2,9 +2,14 @@
 DataLoader Class
 Retrieves and preprocesses play-by-play data from nfelodcm.
 '''
+import pathlib
+import json
+
 import pandas as pd
 import numpy
+
 import nfelodcm as dcm
+
 from ..Utilities import convert_gsis_ids
 
 class DataLoader:
@@ -238,7 +243,7 @@ class DataLoader:
     
     def add_adjustments(self, games_with_meta: pd.DataFrame) -> pd.DataFrame:
         '''
-        Add HFA and QB adjustments
+        Add HFA, QB names, and QB pre-game values
         
         Parameters:
         * games_with_meta: Game-level data with metadata
@@ -254,12 +259,14 @@ class DataLoader:
             on=['game_id'],
             how='left'
         )
-        ## add QB adjustments ##
+        ## add QB names and pre-game values ##
         games = pd.merge(
             games,
-            self.qbelo[['game_id', 'qb1_adj', 'qb2_adj']].rename(columns={
-                'qb1_adj': 'home_qb_adj',
-                'qb2_adj': 'away_qb_adj'
+            self.qbelo[['game_id', 'qb1', 'qb2', 'qb1_value_pre', 'qb2_value_pre']].rename(columns={
+                'qb1': 'home_qb_name',
+                'qb2': 'away_qb_name',
+                'qb1_value_pre': 'home_qb_value',
+                'qb2_value_pre': 'away_qb_value'
             }),
             on=['game_id'],
             how='left'

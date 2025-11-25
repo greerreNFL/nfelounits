@@ -84,40 +84,61 @@ class Unit:
         self.last_game_season = season
         self.coach = coach
     
-    def regress(self, coach:str) -> None:
+    def regress(self, coach: str, team_qb_starter_value: float = 0.0, league_qb_avg: float = 75.0) -> None:
         '''
-        Offseason regression of the unit:
-        new_value = (1 - reversion_rate) * old_value + reversion_rate * 0
-        which equates to old_value * (1 - reversion_rate)
+        Offseason regression with optional QB-adjusted target for pass offense
         
         Parameters:
         * coach: Coach name
-
+        * team_qb_starter_value: Week 1 starter's value (in Elo), used for pass offense
+        * league_qb_avg: League average QB value (in Elo), used for pass offense
         '''
         ## get reversion rate ##
         reversion_param = f'{self.unit_type.value}_{self.side}_reversion'
         reversion_rate = self.params['unit_config'][reversion_param]
-        ## regress value ##
-        self.value = (1 - reversion_rate) * self.value
+        
+        ## for pass offense, also regress toward QB value ##
+        if self.unit_type == UnitType.PASS and self.side == 'off':
+            qb_reversion_rate = self.params['unit_config'].get('pass_off_qb_reversion', 0.0)
+            qb_target = (team_qb_starter_value - league_qb_avg) / 25  # convert to EPA scale
+            
+            ## normalize weights if they sum > 1 ##
+            current_weight = max(0, 1 - reversion_rate - qb_reversion_rate)
+            total = current_weight + reversion_rate + qb_reversion_rate
+            
+            current_weight_norm = current_weight / total
+            reversion_rate_norm = reversion_rate / total
+            qb_reversion_norm = qb_reversion_rate / total
+            
+            self.value = (
+                current_weight_norm * self.value +
+                reversion_rate_norm * 0 +
+                qb_reversion_norm * qb_target
+            )
+        else:
+            ## normal regression ##
+            self.value = (1 - reversion_rate) * self.value
+        
         ## update state ##
         self.last_game_season = None
         self.coach = coach
     
-    def get_value(self, current_season: int, coach: str) -> float:
+    def get_value(self, current_season: int, coach: str, team_qb_starter_value: float = 0.0, league_qb_avg: float = 75.0) -> float:
         '''
         Gets the value of the unit while handling regression if needed 
         
         Parameters:
         * current_season: Current season year
         * coach: Coach name
+        * team_qb_starter_value: Week 1 starter's value (in Elo), used for pass offense regression
+        * league_qb_avg: League average QB value (in Elo), used for pass offense regression
         
         Returns:
         * Value of the unit
         '''
         ## check if offseason regression is needed ##
         if self.last_game_season is not None and self.last_game_season < current_season:
-            ## coach not implimented yet, but still pass
-            self.regress(coach)
+            self.regress(coach, team_qb_starter_value, league_qb_avg)
         ## return value ##
         return self.value
     
