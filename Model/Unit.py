@@ -7,6 +7,7 @@ Represents a team unit (offensive or defensive) with EWMA-style updates.
 from dataclasses import dataclass
 from typing import Dict, Any, Optional
 from .Types import UnitType, Side
+from .RecalibrationObject import RecalibrationObject
 
 
 @dataclass
@@ -96,20 +97,16 @@ class Unit:
         ## get reversion rate ##
         reversion_param = f'{self.unit_type.value}_{self.side}_reversion'
         reversion_rate = self.params['unit_config'][reversion_param]
-        
         ## for pass offense, also regress toward QB value ##
         if self.unit_type == UnitType.PASS and self.side == 'off':
             qb_reversion_rate = self.params['unit_config'].get('pass_off_qb_reversion', 0.0)
             qb_target = (team_qb_starter_value - league_qb_avg) / 25  # convert to EPA scale
-            
             ## normalize weights if they sum > 1 ##
             current_weight = max(0, 1 - reversion_rate - qb_reversion_rate)
             total = current_weight + reversion_rate + qb_reversion_rate
-            
             current_weight_norm = current_weight / total
             reversion_rate_norm = reversion_rate / total
             qb_reversion_norm = qb_reversion_rate / total
-            
             self.value = (
                 current_weight_norm * self.value +
                 reversion_rate_norm * 0 +
@@ -118,27 +115,36 @@ class Unit:
         else:
             ## normal regression ##
             self.value = (1 - reversion_rate) * self.value
-        
         ## update state ##
         self.last_game_season = None
         self.coach = coach
     
-    def get_value(self, current_season: int, coach: str, team_qb_starter_value: float = 0.0, league_qb_avg: float = 75.0) -> float:
+    def get_value(self,
+        current_season: int,
+        coach: str,
+        team_qb_starter_value: float = 0.0,
+        league_qb_avg: float = 75.0,
+        recalibration: Optional[RecalibrationObject] = None
+    ) -> float:
         '''
-        Gets the value of the unit while handling regression if needed 
+        Gets the value of the unit while handling regression and recalibration if needed 
         
         Parameters:
         * current_season: Current season year
         * coach: Coach name
         * team_qb_starter_value: Week 1 starter's value (in Elo), used for pass offense regression
         * league_qb_avg: League average QB value (in Elo), used for pass offense regression
+        * recalibration: Optional RecalibrationObject with ideal value and blend weight
         
         Returns:
-        * Value of the unit
+        * Value of the unit (potentially blended with recalibration)
         '''
         ## check if offseason regression is needed ##
         if self.last_game_season is not None and self.last_game_season < current_season:
             self.regress(coach, team_qb_starter_value, league_qb_avg)
+        ## apply recalibration blend if provided ##
+        if recalibration is not None:
+            self.value = (1 - recalibration.weight) * self.value + recalibration.weight * recalibration.value
         ## return value ##
         return self.value
     

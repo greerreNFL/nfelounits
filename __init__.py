@@ -15,7 +15,7 @@ from .Model import UnitType, Unit, Team, UnitModel, GameContext, EloTranslator
 from .Performance import UnitGrader
 from .Optimizer import ModelConfig, ModelParam, UnitOptimizer, EloOptimizer
 from .Utilities import calculate_win_probability
-from .Scripts import optimize_models, run
+from .Scripts import optimize_models, run, calibrate_normalizer
 
 __all__ = [
     ## data classes ##
@@ -40,4 +40,5 @@ __all__ = [
     ## convenience scripts ##
     'optimize_models',
     'run',
+    'calibrate_normalizer',
 ]

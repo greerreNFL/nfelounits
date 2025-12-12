@@ -175,6 +175,76 @@
             "opti_max": 0.05
         }
     },
+    "recal_config": {
+        "recal_activation_height": {
+            "value": 1.0,
+            "description": "Height of sigmoid activation for recalibration blend",
+            "opti_min": 0.0,
+            "opti_max": 1.0
+        },
+        "recal_activation_midpoint": {
+            "value": 8.0,
+            "description": "Week where recalibration blend weight = 0.5",
+            "opti_min": 4.0,
+            "opti_max": 14.0
+        },
+        "recal_activation_steepness": {
+            "value": 0.5,
+            "description": "Steepness of sigmoid activation for recalibration blend",
+            "opti_min": 0.1,
+            "opti_max": 1.0
+        }
+    },
+    "recal_normalizer": {
+        "pass_off_m": {
+            "value": 0.036466,
+            "description": "Slope of normalization factor vs week for pass offense"
+        },
+        "pass_off_b": {
+            "value": 0.103311,
+            "description": "Intercept of normalization factor vs week for pass offense"
+        },
+        "pass_def_m": {
+            "value": 0.026648,
+            "description": "Slope of normalization factor vs week for pass defense"
+        },
+        "pass_def_b": {
+            "value": 0.025358,
+            "description": "Intercept of normalization factor vs week for pass defense"
+        },
+        "rush_off_m": {
+            "value": 0.023419,
+            "description": "Slope of normalization factor vs week for rush offense"
+        },
+        "rush_off_b": {
+            "value": -0.001415,
+            "description": "Intercept of normalization factor vs week for rush offense"
+        },
+        "rush_def_m": {
+            "value": 0.017425,
+            "description": "Slope of normalization factor vs week for rush defense"
+        },
+        "rush_def_b": {
+            "value": 0.03417,
+            "description": "Intercept of normalization factor vs week for rush defense"
+        },
+        "st_off_m": {
+            "value": 0.023305,
+            "description": "Slope of normalization factor vs week for special teams offense"
+        },
+        "st_off_b": {
+            "value": 0.016911,
+            "description": "Intercept of normalization factor vs week for special teams offense"
+        },
+        "st_def_m": {
+            "value": 0.021346,
+            "description": "Slope of normalization factor vs week for special teams defense"
+        },
+        "st_def_b": {
+            "value": 0.064145,
+            "description": "Intercept of normalization factor vs week for special teams defense"
+        }
+    },
     "elo_config": {
         "pass_off_coef": {
             "value": 23.0463,

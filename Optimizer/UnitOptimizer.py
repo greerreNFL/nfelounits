@@ -7,10 +7,10 @@ Optimizer for tuning unit model configuration parameters to minimize MAE predict
 from typing import List, Optional
 import pathlib
 import pandas as pd
-
 from .BaseOptimizer import BaseOptimizer
 from .ModelConfig import ModelConfig
-from ..Model import UnitModel
+from ..Model import UnitModel, RecalibrationSet
+from ..Performance import UnitGrader
 
 
 class UnitOptimizer(BaseOptimizer):
@@ -18,6 +18,9 @@ class UnitOptimizer(BaseOptimizer):
     Optimizer that returns the optimal value for each parameter in the model config
     '''
     config_section = 'unit_config'
+    
+    ## default path for recalibration cache ##
+    RECAL_CACHE_PATH = 'Output/recalibration_values.csv'
     
     def __init__(self,
         data: pd.DataFrame,
@@ -56,6 +59,32 @@ class UnitOptimizer(BaseOptimizer):
             randomize_bgs=randomize_bgs,
             run_id=run_id
         )
+        ## load recalibration set if optimizing recal_config params ##
+        self.recalibration_set = self._load_recal_set_if_needed(subset)
+    
+    def _load_recal_set_if_needed(self, subset: List[str]) -> Optional[RecalibrationSet]:
+        '''
+        Load RecalibrationSet if any params in subset are recal_config params.
+        
+        Parameters:
+        * subset: List of parameter names being optimized
+        
+        Returns:
+        * RecalibrationSet if recal_config params present, None otherwise
+        '''
+        has_recal_params = any(p.startswith('recal_config.') for p in subset)
+        if not has_recal_params:
+            return None
+        ## load from default path ##
+        recal_path = pathlib.Path(__file__).parent.parent / self.RECAL_CACHE_PATH
+        recal_set = RecalibrationSet.from_csv(str(recal_path))
+        if len(recal_set.records) == 0:
+            raise ValueError(
+                f"Optimizing recal_config params requires pre-computed recalibration values. "
+                f"Run generate_recalibration_cache.py first to create {recal_path}"
+            )
+        print(f"   ✓ Loaded {len(recal_set.records):,} recalibration records for instant lookups")
+        return recal_set
     
     def get_metric_name(self) -> str:
         '''Return the name of the metric being optimized'''
@@ -68,7 +97,11 @@ class UnitOptimizer(BaseOptimizer):
         ## create denormalized config ##
         denormalized_config = self.denormalize_optimizer_values(x)
         ## create the model ##
-        model = UnitModel(self.data, denormalized_config)
+        model = UnitModel(
+            self.data,
+            denormalized_config,
+            recalibration_set=self.recalibration_set
+        )
         ## run the model ##
         model.run()
         ## get results ##
@@ -80,29 +113,22 @@ class UnitOptimizer(BaseOptimizer):
         ## filter to train data set ##
         if 'data_set' in results.columns:
             results = results[results['data_set'] == 'train'].copy()
-        ## calculate MAE for each unit ##
-        mae_values = {}
-        for unit in ['pass', 'rush', 'st']:
-            for side in ['off', 'def']:
-                unit_name = f'{unit}_{side}'
-                expected_col = f'{unit}_{side}_expected'
-                observed_col = f'{unit}_{side}_observed'
-                if expected_col in results.columns and observed_col in results.columns:
-                    mae = (results[expected_col] - results[observed_col]).abs().mean()
-                    mae_values[f'mae_{unit_name}'] = mae
-        ## calculate average MAE across all units ##
-        avg_mae = sum(mae_values.values()) / len(mae_values)
+        ## grade results ##
+        grader = UnitGrader(results)
+        grades = grader.grade()
+        avg_mae = grades['overall_mae']
         ## create scored record ##
         scored_record = {
             'round': self.round_number,
             'avg_mae': avg_mae,
-            **mae_values,
         }
+        ## add individual unit MAEs ##
+        for unit_key in UnitGrader.UNIT_KEYS:
+            scored_record[f'mae_{unit_key}'] = grades[f'{unit_key}_mae']
         ## add denormalized values ##
         for i, feature in enumerate(self.features):
             denormalized_value = self.denormalize_param(x[i], self.config.params[feature])
             scored_record[feature] = denormalized_value
-        
         ## add the record to the optimization records ##
         self.optimization_records.append(scored_record)
         ## save the record if it is a new best, or if it an interval of 100 rounds ##
@@ -122,4 +148,3 @@ class UnitOptimizer(BaseOptimizer):
             df.to_csv(f'{output_dir}/{self.run_id}_{self.subset_name}_inflight_round.csv', index=False)
         ## return average MAE (what we're optimizing) ##
         return avg_mae
-
