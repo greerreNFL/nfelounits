@@ -11,6 +11,7 @@ import pandas as pd
 from .BaseOptimizer import BaseOptimizer
 from .ModelConfig import ModelConfig
 from ..Model import UnitModel
+from ..Performance import UnitGrader
 
 
 class UnitOptimizer(BaseOptimizer):
@@ -80,23 +81,26 @@ class UnitOptimizer(BaseOptimizer):
         ## filter to train data set ##
         if 'data_set' in results.columns:
             results = results[results['data_set'] == 'train'].copy()
-        ## calculate MAE for each unit ##
-        mae_values = {}
-        for unit in ['pass', 'rush', 'st']:
-            for side in ['off', 'def']:
-                unit_name = f'{unit}_{side}'
-                expected_col = f'{unit}_{side}_expected'
-                observed_col = f'{unit}_{side}_observed'
-                if expected_col in results.columns and observed_col in results.columns:
-                    mae = (results[expected_col] - results[observed_col]).abs().mean()
-                    mae_values[f'mae_{unit_name}'] = mae
-        ## calculate average MAE across all units ##
-        avg_mae = sum(mae_values.values()) / len(mae_values)
+        
+        ## calculate grades using UnitGrader ##
+        grader = UnitGrader(results)
+        grades = grader.grade()
+        
+        ## extract MAE values for storage ##
+        ## We want the detailed unit/side MAEs (pass_off_mae, etc)
+        ## but exclude aggregate MAEs like pass_mae or overall_mae for the detailed list
+        detailed_maes = {
+            k: v for k, v in grades.items() 
+            if k.endswith('_mae') and k not in ['avg_mae', 'overall_mae', 'pass_mae', 'rush_mae', 'st_mae']
+        }
+        
+        avg_mae = grades['avg_mae']
+        
         ## create scored record ##
         scored_record = {
             'round': self.round_number,
             'avg_mae': avg_mae,
-            **mae_values,
+            **detailed_maes,
         }
         ## add denormalized values ##
         for i, feature in enumerate(self.features):
@@ -122,4 +126,3 @@ class UnitOptimizer(BaseOptimizer):
             df.to_csv(f'{output_dir}/{self.run_id}_{self.subset_name}_inflight_round.csv', index=False)
         ## return average MAE (what we're optimizing) ##
         return avg_mae
-

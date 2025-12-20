@@ -7,14 +7,14 @@ Main model class that iterates through games and updates unit ratings.
 from typing import Dict, List, Any
 import pandas as pd
 import time
-from .Types import UnitType, Side
-from .Unit import Unit
-from .Team import Team
-from .TeamQb import TeamQb
-from .LeagueBaseline import LeagueBaseline
-from .LeagueQb import LeagueQb
-from .GameContext import GameContext
-from .EloTranslator import EloTranslator
+from .Entities.Types import UnitType, Side
+from .Entities.Unit import Unit
+from .Entities.Team import Team
+from .Entities.TeamQb import TeamQb
+from .Entities.LeagueBaseline import LeagueBaseline
+from .Entities.LeagueQb import LeagueQb
+from .Mechanics.GameContext import GameContext
+from .Mechanics.EloTranslator import EloTranslator
 from ..Utilities import calculate_win_probability
 
 

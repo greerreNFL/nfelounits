@@ -7,7 +7,7 @@ Contains state about game conditions (weather, etc.) and calculates contextual a
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
 import pandas as pd
-from ..Utilities.CurveUtils import s_curve
+from ...Utilities.CurveUtils import s_curve
 
 
 @dataclass

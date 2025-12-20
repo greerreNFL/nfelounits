@@ -5,7 +5,7 @@ Translates unit values to elo ratings and calculates contextual adjustments.
 '''
 
 from typing import Dict
-from .Team import Team
+from ..Entities.Team import Team
 from .GameContext import GameContext
 
 

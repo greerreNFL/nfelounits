@@ -4,15 +4,15 @@ Model Module
 Contains the core model classes for tracking unit ratings.
 '''
 
-from .Types import UnitType, Side
-from .Unit import Unit
-from .Team import Team
-from .TeamQb import TeamQb
-from .LeagueBaseline import LeagueBaseline
-from .LeagueQb import LeagueQb
+from .Entities.Types import UnitType, Side
+from .Entities.Unit import Unit
+from .Entities.Team import Team
+from .Entities.TeamQb import TeamQb
+from .Entities.LeagueBaseline import LeagueBaseline
+from .Entities.LeagueQb import LeagueQb
 from .UnitModel import UnitModel
-from .GameContext import GameContext
-from .EloTranslator import EloTranslator
+from .Mechanics.GameContext import GameContext
+from .Mechanics.EloTranslator import EloTranslator
 
 __all__ = [
     'UnitType',

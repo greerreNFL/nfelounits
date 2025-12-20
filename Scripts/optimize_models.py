@@ -98,7 +98,7 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
             
             print(f"  Best avg MAE this round: {best_record['avg_mae']:.4f}")
             # Show unit-specific MAE if available
-            unit_mae_keys = [k for k in best_record.keys() if k.startswith(f'mae_{unit_name}_')]
+            unit_mae_keys = [k for k in best_record.keys() if k.startswith(f'{unit_name}_') and k.endswith('_mae')]
             if unit_mae_keys:
                 for key in unit_mae_keys:
                     print(f"    {key}: {best_record[key]:.4f}")

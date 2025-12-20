@@ -9,6 +9,7 @@ from pathlib import Path
 from ..Data import DataLoader
 from ..Model import UnitModel
 from ..Optimizer import ModelConfig
+from ..Performance import UnitGrader
 
 
 def run(output_path: str = None):
@@ -47,6 +48,11 @@ def run(output_path: str = None):
     ## Get results
     print("\n4. Preparing results...")
     results = model.get_results_df()
+    
+    ## Calculate and print grades
+    grader = UnitGrader(results)
+    grader.print_grades()
+    
     ## round output ##
     results['elo'] = results['elo'].round(4)
     results['qb_adj'] = results['qb_adj'].round(4)
@@ -74,4 +80,3 @@ def run(output_path: str = None):
     ## Save to file
     output_df.to_csv(f'{output_path}/unit_teams.csv', index=False)
     print(f"   ✓ Saved")
-

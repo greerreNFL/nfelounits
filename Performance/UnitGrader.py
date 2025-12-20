@@ -7,7 +7,7 @@ Mirrors qbelo scoring patterns.
 
 import numpy as np
 import pandas as pd
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 
 class UnitGrader:
@@ -23,25 +23,23 @@ class UnitGrader:
         self.results = results
         self.grades: Dict[str, float] = {}
     
-    def calculate_unit_metrics(
+    def calculate_series_metrics(
         self,
-        unit_prefix: str
+        expected: pd.Series,
+        observed: pd.Series,
+        prefix: str
     ) -> Dict[str, float]:
         """
-        Calculate metrics for a single unit
+        Calculate metrics for a data series pair
         
         Parameters:
-        * unit_prefix: 'pass', 'rush', or 'st'
+        * expected: Series of expected values
+        * observed: Series of observed values
+        * prefix: Prefix for metric keys (e.g. 'pass_off')
         
         Returns:
         * dict with rmse, mae, r_squared
         """
-        expected_col = f"{unit_prefix}_expected"
-        observed_col = f"{unit_prefix}_observed"
-        
-        expected = self.results[expected_col]
-        observed = self.results[observed_col]
-        
         # Calculate metrics
         squared_error = (expected - observed) ** 2
         abs_error = np.abs(expected - observed)
@@ -55,9 +53,9 @@ class UnitGrader:
         r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
         
         return {
-            f"{unit_prefix}_rmse": rmse,
-            f"{unit_prefix}_mae": mae,
-            f"{unit_prefix}_r_squared": r_squared
+            f"{prefix}_rmse": rmse,
+            f"{prefix}_mae": mae,
+            f"{prefix}_r_squared": r_squared
         }
     
     def grade(self) -> Dict[str, float]:
@@ -65,58 +63,75 @@ class UnitGrader:
         Calculate all performance metrics
         
         Returns:
-        * dict with metrics for each unit plus overall
+        * dict with metrics for each unit component plus overall
         """
-        # Grade each unit
-        pass_metrics = self.calculate_unit_metrics('pass')
-        rush_metrics = self.calculate_unit_metrics('rush')
-        st_metrics = self.calculate_unit_metrics('st')
+        units = ['pass', 'rush', 'st']
+        sides = ['off', 'def']
         
-        self.grades.update(pass_metrics)
-        self.grades.update(rush_metrics)
-        self.grades.update(st_metrics)
+        all_maes = []
+        all_rmses = []
+        all_r_squareds = []
         
-        # Calculate overall metrics (average across units)
-        self.grades['overall_rmse'] = np.mean([
-            pass_metrics['pass_rmse'],
-            rush_metrics['rush_rmse'],
-            st_metrics['st_rmse']
-        ])
+        for unit in units:
+            unit_maes = []
+            unit_rmses = []
+            unit_r_squareds = []
+            
+            for side in sides:
+                col_prefix = f"{unit}_{side}"
+                expected_col = f"{col_prefix}_expected"
+                observed_col = f"{col_prefix}_observed"
+                
+                if expected_col in self.results.columns and observed_col in self.results.columns:
+                    metrics = self.calculate_series_metrics(
+                        self.results[expected_col],
+                        self.results[observed_col],
+                        col_prefix
+                    )
+                    self.grades.update(metrics)
+                    
+                    # Track for aggregation
+                    all_maes.append(metrics[f"{col_prefix}_mae"])
+                    all_rmses.append(metrics[f"{col_prefix}_rmse"])
+                    all_r_squareds.append(metrics[f"{col_prefix}_r_squared"])
+                    
+                    unit_maes.append(metrics[f"{col_prefix}_mae"])
+                    unit_rmses.append(metrics[f"{col_prefix}_rmse"])
+                    unit_r_squareds.append(metrics[f"{col_prefix}_r_squared"])
+            
+            # Aggregate for unit type (average of off/def)
+            if unit_maes:
+                self.grades[f"{unit}_mae"] = np.mean(unit_maes)
+                self.grades[f"{unit}_rmse"] = np.mean(unit_rmses)
+                self.grades[f"{unit}_r_squared"] = np.mean(unit_r_squareds)
         
-        self.grades['overall_mae'] = np.mean([
-            pass_metrics['pass_mae'],
-            rush_metrics['rush_mae'],
-            st_metrics['st_mae']
-        ])
-        
-        self.grades['overall_r_squared'] = np.mean([
-            pass_metrics['pass_r_squared'],
-            rush_metrics['rush_r_squared'],
-            st_metrics['st_r_squared']
-        ])
+        # Calculate overall metrics (average across all 6 components)
+        if all_maes:
+            self.grades['avg_mae'] = np.mean(all_maes)
+            self.grades['overall_mae'] = np.mean(all_maes) # Alias for backward compatibility/clarity
+            self.grades['overall_rmse'] = np.mean(all_rmses)
+            self.grades['overall_r_squared'] = np.mean(all_r_squareds)
         
         return self.grades
     
     def print_grades(self) -> None:
         """Print formatted performance metrics"""
+        if not self.grades:
+            self.grade()
+            
         print('\nUnit Model Performance:')
-        print('\nPass Unit:')
-        print(f"  RMSE: {self.grades['pass_rmse']:.3f}")
-        print(f"  MAE: {self.grades['pass_mae']:.3f}")
-        print(f"  R²: {self.grades['pass_r_squared']:.3f}")
         
-        print('\nRush Unit:')
-        print(f"  RMSE: {self.grades['rush_rmse']:.3f}")
-        print(f"  MAE: {self.grades['rush_mae']:.3f}")
-        print(f"  R²: {self.grades['rush_r_squared']:.3f}")
+        for unit in ['pass', 'rush', 'st']:
+            print(f'\n{unit.capitalize()} Unit:')
+            if f"{unit}_mae" in self.grades:
+                print(f"  RMSE: {self.grades.get(f'{unit}_rmse', 0):.4f}")
+                print(f"  MAE: {self.grades.get(f'{unit}_mae', 0):.4f}")
+                print(f"  R²: {self.grades.get(f'{unit}_r_squared', 0):.4f}")
+                # Optional: Print off/def splits if desired, keeping it clean for now
+            else:
+                print("  No data")
         
-        print('\nSpecial Teams Unit:')
-        print(f"  RMSE: {self.grades['st_rmse']:.3f}")
-        print(f"  MAE: {self.grades['st_mae']:.3f}")
-        print(f"  R²: {self.grades['st_r_squared']:.3f}")
-        
-        print('\nOverall:')
-        print(f"  RMSE: {self.grades['overall_rmse']:.3f}")
-        print(f"  MAE: {self.grades['overall_mae']:.3f}")
-        print(f"  R²: {self.grades['overall_r_squared']:.3f}")
-
+        print('\nOverall (Avg across 6 components):')
+        print(f"  RMSE: {self.grades.get('overall_rmse', 0):.4f}")
+        print(f"  MAE: {self.grades.get('overall_mae', 0):.4f}")
+        print(f"  R²: {self.grades.get('overall_r_squared', 0):.4f}")
