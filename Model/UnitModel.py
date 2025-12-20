@@ -4,17 +4,17 @@ UnitModel Class
 Main model class that iterates through games and updates unit ratings.
 '''
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import pandas as pd
 import time
-from .Entities.Types import UnitType, Side
-from .Entities.Unit import Unit
-from .Entities.Team import Team
-from .Entities.TeamQb import TeamQb
-from .Entities.LeagueBaseline import LeagueBaseline
-from .Entities.LeagueQb import LeagueQb
-from .Mechanics.GameContext import GameContext
-from .Mechanics.EloTranslator import EloTranslator
+
+from .Entities import (
+    UnitType, Side, Unit,
+    Team, TeamQb,
+    LeagueBaseline, LeagueQb
+)
+from .Mechanics import GameContext, EloTranslator
+from .State import UnitModelStateManager
 from ..Utilities import calculate_win_probability
 
 
@@ -38,6 +38,8 @@ class UnitModel:
         self.league_qb: LeagueQb = LeagueQb(params=config)
         ## elo translator ##
         self.elo_translator: EloTranslator = EloTranslator(config.get('elo_config', {}))
+        ## state manager ##
+        self.state_manager: UnitModelStateManager = UnitModelStateManager()
         ## runtime tracking ##
         self.model_runtime: float = 0.0
     
@@ -325,4 +327,47 @@ class UnitModel:
     def get_results_df(self) -> pd.DataFrame:
         '''Return results as DataFrame'''
         return pd.DataFrame(self.team_game_records)
+    
+    def load_from_state(self, filepath: Optional[str] = None) -> None:
+        '''
+        Load model state from a saved JSON file.
+        
+        Restores teams, baselines, and history from state.
+        Filters self.games to exclude any game_id already processed.
+        
+        Parameters:
+            filepath: Path to state file. Defaults to Model/State/model_state.json
+        '''
+        state = self.state_manager.load(self.config, filepath)
+        ## restore state ##
+        self.teams = state.teams
+        self.league_baseline = state.league_baseline
+        self.league_qb = state.league_qb
+        self.team_game_records = state.team_game_records
+        ## filter games to exclude already-processed game_ids ##
+        processed_game_ids = set(r['game_id'] for r in self.team_game_records)
+        original_count = len(self.games)
+        self.games = self.games[~self.games['game_id'].isin(processed_game_ids)].reset_index(drop=True)
+        print(f"Loaded state: {len(self.teams)} teams, {len(self.team_game_records)} records")
+        print(f"Filtered games: {original_count} -> {len(self.games)} remaining")
+    
+    def save_to_state(self, filepath: Optional[str] = None) -> str:
+        '''
+        Save current model state to a JSON file.
+        
+        Parameters:
+            filepath: Path to save to. Defaults to Model/State/model_state.json
+        
+        Returns:
+            The filepath where state was saved
+        '''
+        saved_path = self.state_manager.save(
+            teams=self.teams,
+            league_baseline=self.league_baseline,
+            league_qb=self.league_qb,
+            team_game_records=self.team_game_records,
+            filepath=filepath
+        )
+        print(f"Saved state: {len(self.teams)} teams, {len(self.team_game_records)} records -> {saved_path}")
+        return saved_path
     

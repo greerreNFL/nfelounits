@@ -1,0 +1,32 @@
+'''
+UnitModelState Dataclass
+
+Data container for model state - holds teams, baselines, and history.
+Pure data class with no IO logic.
+'''
+
+from dataclasses import dataclass
+from typing import Dict, List, Any, Optional
+
+from ..Entities import Team, LeagueBaseline, LeagueQb
+
+@dataclass
+class UnitModelState:
+    '''
+    Immutable snapshot of model state at a point in time.
+    
+    Attributes:
+        season: The season this state represents
+        week: The week this state is FOR (about to predict)
+        teams: Dictionary of team abbreviation -> Team object
+        league_baseline: LeagueBaseline object
+        league_qb: LeagueQb object
+        team_game_records: List of game record dictionaries (historical output)
+    '''
+    season: int
+    week: int
+    teams: Dict[str, Team]
+    league_baseline: LeagueBaseline
+    league_qb: LeagueQb
+    team_game_records: List[Dict[str, Any]]
+
