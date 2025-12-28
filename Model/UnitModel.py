@@ -11,7 +11,8 @@ import time
 from .Entities import (
     UnitType, Side, Unit,
     Team, TeamQb,
-    LeagueBaseline, LeagueQb
+    LeagueBaseline, LeagueQb,
+    TeamGameRecord
 )
 from .Mechanics import GameContext, EloTranslator
 from .State import UnitModelStateManager
@@ -33,7 +34,7 @@ class UnitModel:
         self.config = config
         ## storage ##
         self.teams: Dict[str, Team] = {} ## dict that holds units
-        self.team_game_records: List[Dict[str, Any]] = []
+        self.team_game_records: List[TeamGameRecord] = []
         self.league_baseline: LeagueBaseline = LeagueBaseline(params=config)
         self.league_qb: LeagueQb = LeagueQb(params=config)
         ## elo translator ##

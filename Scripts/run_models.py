@@ -3,13 +3,13 @@ Run Models Script
 
 Convenience function to run the model and save results to output file.
 '''
-import pandas as pd
 from pathlib import Path
 
 from ..Data import DataLoader
 from ..Model import UnitModel
 from ..Optimizer import ModelConfig
 from ..Performance import UnitGrader
+from ..Processing import UnitTeamsProcessor, UnitTeamsNormalizationProcessor
 
 
 def run(output_path: str = None):
@@ -53,30 +53,10 @@ def run(output_path: str = None):
     grader = UnitGrader(results)
     grader.print_grades()
     
-    ## round output ##
-    results['elo'] = results['elo'].round(4)
-    results['qb_adj'] = results['qb_adj'].round(4)
-    for unit in ['pass', 'rush', 'st']:
-        for side in ['off', 'def']:
-            results[f'{unit}_{side}_value_pre'] = results[f'{unit}_{side}_value_pre'].round(4)
-            results[f'{unit}_{side}_value_post'] = results[f'{unit}_{side}_value_post'].round(4)
-    ## Select and order columns for output
-    output_cols = [
-        'season', 'week', 'team', 'opponent',
-        'elo','qb_adj',
-        # Pre-game values
-        'pass_off_value_pre', 'pass_def_value_pre',
-        'rush_off_value_pre', 'rush_def_value_pre',
-        'st_off_value_pre', 'st_def_value_pre',
-        # Post-game values
-        'pass_off_value_post', 'pass_def_value_post',
-        'rush_off_value_post', 'rush_def_value_post',
-        'st_off_value_post', 'st_def_value_post',
-        'elo_post'
-    ]
-    ## Filter to available columns
-    available_cols = [col for col in output_cols if col in results.columns]
-    output_df = results[available_cols].copy()
-    ## Save to file
-    output_df.to_csv(f'{output_path}/unit_teams.csv', index=False)
-    print(f"   ✓ Saved")
+    ## Process and save output
+    processor = UnitTeamsProcessor(model.team_game_records)
+    processor.save(output_path)
+    print(f"   ✓ Saved Output")
+    processor = UnitTeamsNormalizationProcessor(model.team_game_records)
+    processor.save(output_path)
+    print(f"   ✓ Saved Normalized Output")

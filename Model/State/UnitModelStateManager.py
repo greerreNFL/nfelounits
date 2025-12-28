@@ -14,7 +14,8 @@ from .UnitModelState import UnitModelState
 from ..Entities import (
     UnitType, Side, Unit,
     Team, TeamQb,
-    LeagueBaseline, LeagueQb
+    LeagueBaseline, LeagueQb,
+    TeamGameRecord
 )
 
 
@@ -156,7 +157,7 @@ class UnitModelStateManager:
         teams: Dict[str, Team],
         league_baseline: LeagueBaseline,
         league_qb: LeagueQb,
-        team_game_records: List[Dict[str, Any]],
+        team_game_records: List[TeamGameRecord],
         filepath: Optional[str] = None
     ) -> str:
         '''
@@ -166,7 +167,7 @@ class UnitModelStateManager:
             teams: Dictionary of team abbreviation -> Team object
             league_baseline: LeagueBaseline object
             league_qb: LeagueQb object
-            team_game_records: List of game record dictionaries
+            team_game_records: List of TeamGameRecord dicts
             filepath: Path to save to. Defaults to Model/State/model_state.json
         
         Returns:

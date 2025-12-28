@@ -6,9 +6,9 @@ Pure data class with no IO logic.
 '''
 
 from dataclasses import dataclass
-from typing import Dict, List, Any, Optional
+from typing import Dict, List
 
-from ..Entities import Team, LeagueBaseline, LeagueQb
+from ..Entities import Team, LeagueBaseline, LeagueQb, TeamGameRecord
 
 @dataclass
 class UnitModelState:
@@ -21,12 +21,12 @@ class UnitModelState:
         teams: Dictionary of team abbreviation -> Team object
         league_baseline: LeagueBaseline object
         league_qb: LeagueQb object
-        team_game_records: List of game record dictionaries (historical output)
+        team_game_records: List of TeamGameRecord dicts (historical output)
     '''
     season: int
     week: int
     teams: Dict[str, Team]
     league_baseline: LeagueBaseline
     league_qb: LeagueQb
-    team_game_records: List[Dict[str, Any]]
+    team_game_records: List[TeamGameRecord]
 

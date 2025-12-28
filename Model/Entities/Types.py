@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import TypedDict
 
 
 class UnitType(Enum):
@@ -15,4 +16,50 @@ class Side(Enum):
     '''
     OFFENSE = "off"
     DEFENSE = "def"
+
+class TeamGameRecord(TypedDict):
+    '''
+    Type definition for a single team-game record output by the model.
+    '''
+    game_id: str
+    season: int
+    week: int
+    team: str
+    opponent: str
+    is_home: bool
+    result: float
+    qb_value: float
+    qb_adj: float
+    coach: str
+    ## pre-game unit values ##
+    pass_off_value_pre: float
+    rush_off_value_pre: float
+    st_off_value_pre: float
+    pass_def_value_pre: float
+    rush_def_value_pre: float
+    st_def_value_pre: float
+    ## elo values ##
+    elo: float
+    context_adj: float
+    win_prob: float
+    ## expected/observed ##
+    pass_off_expected: float
+    pass_off_observed: float
+    pass_def_expected: float
+    pass_def_observed: float
+    rush_off_expected: float
+    rush_off_observed: float
+    rush_def_expected: float
+    rush_def_observed: float
+    st_off_expected: float
+    st_off_observed: float
+    st_def_expected: float
+    st_def_observed: float
+    ## post-game unit values ##
+    pass_off_value_post: float
+    rush_off_value_post: float
+    st_off_value_post: float
+    pass_def_value_post: float
+    rush_def_value_post: float
+    st_def_value_post: float
 

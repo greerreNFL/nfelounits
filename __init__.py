@@ -11,8 +11,9 @@ __version__ = '0.2.1'
 
 ## import main classes for easy access ##
 from .Data import DataLoader, DataSplitter
-from .Model import UnitType, Unit, Team, UnitModel, GameContext, EloTranslator
+from .Model import UnitType, Unit, Team, TeamGameRecord, UnitModel, GameContext, EloTranslator
 from .Performance import UnitGrader
+from .Processing import BaseProcessor, UnitTeamsProcessor
 from .Optimizer import ModelConfig, ModelParam, UnitOptimizer, EloOptimizer
 from .Utilities import calculate_win_probability
 from .Scripts import optimize_models, run
@@ -25,11 +26,15 @@ __all__ = [
     'UnitType',
     'Unit',
     'Team',
+    'TeamGameRecord',
     'UnitModel',
     'GameContext',
     'EloTranslator',
     ## performance classes ##
     'UnitGrader',
+    ## processing classes ##
+    'BaseProcessor',
+    'UnitTeamsProcessor',
     ## optimizer classes ##
     'ModelConfig',
     'ModelParam',
