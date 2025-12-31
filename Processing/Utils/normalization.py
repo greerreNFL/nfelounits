@@ -20,7 +20,8 @@ def normalize(
     columns: List[str],
     reference_season: int = 2015,
     reference_week: int = 1,
-    w: int = 20
+    w: int = 30,
+    group_by_week: bool = False
 ) -> pd.DataFrame:
     '''
     Era-adjust columns to a reference point.
@@ -34,7 +35,9 @@ def normalize(
     * columns: List of column names to normalize
     * reference_season: Season for reference distribution (default 2015)
     * reference_week: Week for reference distribution (default 1)
-    * w: Half-window size (default 20, giving 41-week window)
+    * w: Half-window size (default 30, giving 61-week window)
+    * group_by_week: If True, calculate mean/std within each week number
+      (useful for metrics like value_created where sample size varies by week)
     
     Returns:
     * DataFrame with added '{col}_norm' columns
@@ -59,6 +62,10 @@ def normalize(
     for week_idx, (start, end) in windows.items():
         rec = {'week_idx': week_idx}
         window = result[(result['week_idx'] >= start) & (result['week_idx'] <= end)]
+        if group_by_week:
+            ## filter to same week number within window ##
+            current_week = result[result['week_idx'] == week_idx]['week'].iloc[0]
+            window = window[window['week'] == current_week]
         for col in columns:
             rec[f'{col}_mean'] = window[col].mean()
             rec[f'{col}_std'] = window[col].std()

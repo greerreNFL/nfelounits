@@ -39,12 +39,72 @@ class DataLoader:
         Returns:
         * Game-level DataFrame ready for model consumption
         '''
+        ## build games: all played + next unplayed week, with metadata ##
+        games = self.build_games()
+        ## aggregate EPA from PBP ##
         pbp = self.pbp.copy()
         parsed_pbp = self.parse_pbp(pbp)
-        game_level = self.aggregate_games(parsed_pbp)
-        games_with_meta = self.add_meta(game_level)
-        games_with_adjs = self.add_adjustments(games_with_meta)
+        epa_data = self.aggregate_games(parsed_pbp)
+        ## join EPA to games (unplayed games will have null EPA) ##
+        games_with_epa = pd.merge(
+            games,
+            epa_data[['game_id', 'home_pass_epa', 'home_rush_epa', 'home_st_epa',
+                      'away_pass_epa', 'away_rush_epa', 'away_st_epa']],
+            on='game_id',
+            how='left'
+        )
+        ## filter out games with result but no EPA (playoff games, etc.) ##
+        ## keep: games with EPA OR games without result (truly unplayed) ##
+        games_with_epa = games_with_epa[
+            (games_with_epa['home_pass_epa'].notna()) |
+            (games_with_epa['result'].isna())
+        ].copy()
+        ## add adjustments (HFA, QB) ##
+        games_with_adjs = self.add_adjustments(games_with_epa)
         return games_with_adjs
+    
+    def build_games(self) -> pd.DataFrame:
+        '''
+        Build games DataFrame from schedule data.
+        
+        Includes all played regular season games plus the next unplayed week.
+        Uses 'result' column to determine played vs unplayed (NaN = unplayed).
+        Filters to game_type == 'REG' for consistency with PBP parsing.
+        
+        Returns:
+        * DataFrame with game info and metadata for all games to be processed
+        '''
+        games = self.games.copy()
+        ## filter to regular season only (consistent with parse_pbp) ##
+        games = games[games['game_type'] == 'REG'].copy()
+        ## find next unplayed week using aggregation ##
+        week_summary = games.groupby(['season', 'week']).agg(
+            total_games=('game_id', 'count'),
+            played_games=('result', lambda x: x.notna().sum())
+        ).reset_index().sort_values(['season', 'week']).reset_index(drop=True)
+        ## weeks with unplayed games are where total > played ##
+        unplayed_weeks = week_summary[week_summary['total_games'] > week_summary['played_games']]
+        ## determine filter: all played games + next unplayed week (if any) ##
+        if len(unplayed_weeks) > 0:
+            ## take first unplayed week ##
+            next_unplayed = unplayed_weeks.iloc[0]
+            current_season = next_unplayed['season']
+            current_week = next_unplayed['week']
+            ## filter: played OR (current season AND current week) ##
+            games = games[
+                (games['result'].notna()) |
+                ((games['season'] == current_season) & (games['week'] == current_week))
+            ].copy()
+        else:
+            ## no unplayed games, just use played ##
+            games = games[games['result'].notna()].copy()
+        ## select columns (includes metadata) ##
+        games = games[[
+            'game_id', 'season', 'week', 'home_team', 'away_team',
+            'temp', 'wind', 'home_coach', 'away_coach',
+            'result', 'total', 'spread_line', 'total_line'
+        ]].copy()
+        return games
     
     def parse_pbp(self, pbp: pd.DataFrame) -> pd.DataFrame:
         '''
@@ -217,29 +277,6 @@ class DataLoader:
         )
         return games
 
-    def add_meta(self, game_level: pd.DataFrame) -> pd.DataFrame:
-        '''
-        Add game metadata (temp, wind, coaches, margin)
-        
-        Parameters:
-        * games: Game-level EPA data
-        
-        Returns:
-        * Game-level data with metadata added
-        '''
-        games = game_level.copy()
-        meta = self.games[[
-            'game_id', 'temp', 'wind',
-            'home_coach', 'away_coach',
-            'result', 'total', 'spread_line', 'total_line'
-        ]].copy()
-        result = pd.merge(
-            games,
-            meta,
-            on=['game_id'],
-            how='left'
-        )
-        return result
     
     def add_adjustments(self, games_with_meta: pd.DataFrame) -> pd.DataFrame:
         '''

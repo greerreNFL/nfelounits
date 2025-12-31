@@ -40,6 +40,10 @@ class UnitGrader:
         Returns:
         * dict with rmse, mae, r_squared
         """
+        ## filter out rows with NaN (unplayed games) ##
+        mask = expected.notna() & observed.notna()
+        expected = expected[mask]
+        observed = observed[mask]
         # Calculate metrics
         squared_error = (expected - observed) ** 2
         abs_error = np.abs(expected - observed)

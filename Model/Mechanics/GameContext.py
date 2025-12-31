@@ -25,13 +25,16 @@ class GameContext:
     
     def weather_adj(self, unit_type: str) -> float:
         '''
-        Calculate the negative adjustment for wind and temp for a specific unit type
+        Calculate the weather adjustment for a specific unit type.
+        
+        Returns a negative value for bad weather (high wind, low temp) since
+        bad weather reduces offensive EPA. Adjustments should be added directly.
         
         Parameters:
         * unit_type: The unit type ('pass', 'rush', or 'st')
         
         Returns:
-        * The total weather adjustment (negative value that reduces expected EPA)
+        * The total weather adjustment (negative for bad weather)
         '''
         ## hard-coded midpoints ##
         TEMP_MP = 32
@@ -53,8 +56,8 @@ class GameContext:
             temp,
             'down'
         )
-        ## calc the adjustment ##
-        return temp_adj + wind_adj
+        ## return negative since bad weather hurts offense ##
+        return -1 * (temp_adj + wind_adj)
     
     def hfa_adj(self, unit_type: str, is_home: bool) -> float:
         '''

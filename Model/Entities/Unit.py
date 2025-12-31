@@ -19,6 +19,7 @@ class Unit:
     last_game_season: Optional[int] = None
     coach: Optional[str] = None
     params: Dict[str, Any] = None
+    pending_update: bool = False
     
     def __post_init__(self):
         '''Initialize params if not provided'''
@@ -46,7 +47,7 @@ class Unit:
         * hfa_adj: Home field advantage adjustment (already calculated for this unit)
         * home_qb_adj: Home team QB adjustment
         * away_qb_adj: Away team QB adjustment
-        * weather_adj: Weather adjustment (negative value that reduces expected EPA)
+        * weather_adj: Weather adjustment (negative for bad weather, add directly)
         * season: Season year
         * is_home: Whether this unit's team is home
         * league_avg: League-wide average EPA for this unit type
@@ -70,19 +71,21 @@ class Unit:
         ## calculate opponent-adjusted value ##
         if self.side == 'off':
             observed_performance = (
-                observed_epa - (qb_adj + hfa_adj - weather_adj) + ## observed value adjusted for QB, HFA, and weather
+                observed_epa - (qb_adj + hfa_adj + weather_adj) + ## observed value adjusted for QB, HFA, and weather
                 opponent_value - ## adjust for opponent difficulty (good defense = positive, makes this harder)
                 league_avg ## subtract league average to center around 0
             )
         else:  ## def ##
             observed_performance = (
-                opponent_value + league_avg + (opp_qb_adj - hfa_adj - weather_adj) - ## expected absolute EPA = opponent relative value + league avg + adjs
+                opponent_value + league_avg + (opp_qb_adj - hfa_adj + weather_adj) - ## expected absolute EPA = opponent relative value + league avg + adjs
                 observed_epa ## subtract observed absolute EPA to get defensive performance relative to league average
             )
         ## update value ##
         self.value = sf * observed_performance + (1 - sf) * self.value
         self.last_game_season = season
         self.coach = coach
+        ## clear pending update flag ##
+        self.pending_update = False
     
     def regress(self, coach: str, team_qb_starter_value: float = 0.0, league_qb_avg: float = 75.0) -> None:
         '''
@@ -135,10 +138,23 @@ class Unit:
         
         Returns:
         * Value of the unit
+        
+        Raises:
+        * RuntimeError: If get_value() is called when a previous game was not updated
+          (indicates attempting to process multiple unplayed weeks)
         '''
+        ## check if previous game was not updated (unplayed game protection) ##
+        if self.pending_update:
+            raise RuntimeError(
+                f'Unit {self.team} {self.unit_type.value}_{self.side} has a pending update. '
+                f'Cannot get value again before update() is called. '
+                f'This typically means multiple unplayed weeks were passed to the model.'
+            )
         ## check if offseason regression is needed ##
         if self.last_game_season is not None and self.last_game_season < current_season:
             self.regress(coach, team_qb_starter_value, league_qb_avg)
+        ## set pending update flag ##
+        self.pending_update = True
         ## return value ##
         return self.value
     
@@ -162,7 +178,7 @@ class Unit:
         * hfa_adj: Home field advantage adjustment (already calculated for this unit)
         * home_qb_adj: Home team QB adjustment
         * away_qb_adj: Away team QB adjustment
-        * weather_adj: Weather adjustment (negative value that reduces expected EPA)
+        * weather_adj: Weather adjustment (negative for bad weather, add directly)
         * is_home: Whether this unit's team is home
         * league_avg: League-wide average EPA for this unit type
         
@@ -180,13 +196,13 @@ class Unit:
         if self.side == 'off':
             expected = (
                 self.value + ## team's unit value (relative to league avg)
-                (qb_adj + hfa_adj - weather_adj) - ## add team advantages, subtract weather penalty
+                (qb_adj + hfa_adj + weather_adj) - ## add team advantages and weather adjustment
                 opponent_value + ## subtract opponent defense (good defense = positive, so subtract)
                 league_avg ## add back league average since unit value is relative
             )
         else:  ## def ##
             expected = (
-                opponent_value + (opp_qb_adj - hfa_adj - weather_adj) + ## opponent's expected EPA given their advantages and weather
+                opponent_value + (opp_qb_adj - hfa_adj + weather_adj) + ## opponent's expected EPA given their advantages and weather
                 league_avg ## add back league average since opponent unit value is relative
             )
         return expected

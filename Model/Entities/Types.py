@@ -55,6 +55,24 @@ class TeamGameRecord(TypedDict):
     st_off_observed: float
     st_def_expected: float
     st_def_observed: float
+    ## value created ##
+    pass_off_value_created: float
+    pass_def_value_created: float
+    rush_off_value_created: float
+    rush_def_value_created: float
+    st_off_value_created: float
+    st_def_value_created: float
+    ## league averages ##
+    pass_league_avg: float
+    rush_league_avg: float
+    st_league_avg: float
+    ## opponent faced (positive = harder) ##
+    pass_off_faced: float
+    pass_def_faced: float
+    rush_off_faced: float
+    rush_def_faced: float
+    st_off_faced: float
+    st_def_faced: float
     ## post-game unit values ##
     pass_off_value_post: float
     rush_off_value_post: float

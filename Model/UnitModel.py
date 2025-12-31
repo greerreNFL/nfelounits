@@ -79,9 +79,17 @@ class UnitModel:
         Steps:
         1. Get team and opponent objects
         2. Access unit values (which handles regression)
-        3. Update units for observed values
-        4. Update all state 
+        3. Update units for observed values (skipped for unplayed games)
+        4. Update all state
+        
+        For unplayed games (result is NaN):
+        - Pre-game values are still calculated (regression applied if needed)
+        - Elo and win probability are calculated
+        - Observations, post-game values, and updates are skipped
+        - Units are left with pending_update=True (safety mechanism)
         '''
+        ## check if game has result (determines if played) ##
+        has_result = pd.notna(row['result'])
         ## get team objects##
         home_team = self.get_team(row['home_team'])
         away_team = self.get_team(row['away_team'])
@@ -111,7 +119,7 @@ class UnitModel:
             'team': row['home_team'],
             'opponent': row['away_team'],
             'is_home': True,
-            'result': row['result'],
+            'result': row['result'] if has_result else None,
             'qb_value': home_qb_value,  # actual starter value
             'qb_adj': home_qb_adj,  # calculated adjustment
             'coach': row['home_coach'],
@@ -131,7 +139,7 @@ class UnitModel:
             'team': row['away_team'],
             'opponent': row['home_team'],
             'is_home': False,
-            'result': -row['result'],  ## flip sign for away team perspective
+            'result': -row['result'] if has_result else None,  ## flip sign for away team perspective
             'qb_value': away_qb_value,  # actual starter value
             'qb_adj': away_qb_adj,  # calculated adjustment
             'coach': row['away_coach'],
@@ -167,7 +175,7 @@ class UnitModel:
         away_game_record['context_adj'] = away_context_adj
         away_game_record['win_prob'] = 1-home_win_prob
 
-        ## Update units ##
+        ## Process units - expected values always, observed/updates only for played games ##
         for unit_type in ['pass', 'rush', 'st']:
             ## access units from team objects ##
             home_off_unit = getattr(home_team, f'{unit_type}_off')
@@ -180,7 +188,7 @@ class UnitModel:
             weather_adj = game_context.weather_adj(unit_type)
             home_hfa_adj = game_context.hfa_adj(unit_type, is_home=True)
             away_hfa_adj = game_context.hfa_adj(unit_type, is_home=False)
-            ## calculate expected EPA before updating ##
+            ## calculate expected EPA (always, even for unplayed) ##
             home_off_expected = home_off_unit.get_expected_epa(
                 opponent_value=away_def_unit.value,
                 hfa_adj=home_hfa_adj,
@@ -217,87 +225,168 @@ class UnitModel:
                 is_home=False,
                 league_avg=league_avg
             )
-            ## store expected and observed in records ##
+            ## store expected in records (always) ##
             home_game_record[f'{unit_type}_off_expected'] = home_off_expected
-            home_game_record[f'{unit_type}_off_observed'] = row[f'home_{unit_type}_epa']
             home_game_record[f'{unit_type}_def_expected'] = home_def_expected
-            home_game_record[f'{unit_type}_def_observed'] = row[f'away_{unit_type}_epa']
             away_game_record[f'{unit_type}_off_expected'] = away_off_expected
-            away_game_record[f'{unit_type}_off_observed'] = row[f'away_{unit_type}_epa']
             away_game_record[f'{unit_type}_def_expected'] = away_def_expected
-            away_game_record[f'{unit_type}_def_observed'] = row[f'home_{unit_type}_epa']
-            ## update units ##
-            home_off_unit.update(
-                observed_epa=row[f'home_{unit_type}_epa'], ## observed EPA
-                opponent_value=away_def_unit.value, ## expected value
-                hfa_adj=home_hfa_adj,
-                home_qb_adj=home_qb_adj,
-                away_qb_adj=away_qb_adj,
-                weather_adj=weather_adj,
-                season=row['season'],
-                coach=row['home_coach'],
-                is_home=True,
-                league_avg=league_avg
-            )
-            home_def_unit.update(
-                observed_epa=row[f'away_{unit_type}_epa'], ## observed EPA
-                opponent_value=away_off_unit.value,
-                hfa_adj=home_hfa_adj,
-                home_qb_adj=home_qb_adj,
-                away_qb_adj=away_qb_adj,
-                weather_adj=weather_adj,
-                season=row['season'],
-                coach=row['home_coach'],
-                is_home=True,
-                league_avg=league_avg
-            )
-            away_off_unit.update(
-                observed_epa=row[f'away_{unit_type}_epa'],
-                opponent_value=home_def_unit.value,
-                hfa_adj=away_hfa_adj,
-                home_qb_adj=away_qb_adj,
-                away_qb_adj=home_qb_adj,
-                weather_adj=weather_adj,
-                season=row['season'],
-                coach=row['away_coach'],
-                is_home=False,
-                league_avg=league_avg
-            )
-            away_def_unit.update(
-                observed_epa=row[f'home_{unit_type}_epa'],
-                opponent_value=home_off_unit.value,
-                hfa_adj=away_hfa_adj,
-                home_qb_adj=away_qb_adj,
-                away_qb_adj=home_qb_adj,
-                weather_adj=weather_adj,
-                season=row['season'],
-                coach=row['away_coach'],
-                is_home=False,
-                league_avg=league_avg
-            )
-            ## update league baseline (twice - once for each team) ##
-            self.league_baseline.update(unit_type, row[f'home_{unit_type}_epa'], row['season'])
-            self.league_baseline.update(unit_type, row[f'away_{unit_type}_epa'], row['season'])
-        ## update league QB baseline ##
-        self.league_qb.update(home_qb_value)
-        self.league_qb.update(away_qb_value)
-        ## update record for updated values ##
-        home_game_record = home_game_record | {
-            'pass_off_value_post': home_team.pass_off.value,
-            'rush_off_value_post': home_team.rush_off.value,
-            'st_off_value_post': home_team.st_off.value,
-            'pass_def_value_post': home_team.pass_def.value,
-            'rush_def_value_post': home_team.rush_def.value,
-            'st_def_value_post': home_team.st_def.value,
-        }
-        away_game_record = away_game_record | {
-            'pass_off_value_post': away_team.pass_off.value,
-            'rush_off_value_post': away_team.rush_off.value,
-            'st_off_value_post': away_team.st_off.value,
-            'pass_def_value_post': away_team.pass_def.value,
-            'rush_def_value_post': away_team.rush_def.value,
-            'st_def_value_post': away_team.st_def.value,
-        }
+            ## observed and updates only for played games ##
+            if has_result:
+                ## store observed in records ##
+                home_game_record[f'{unit_type}_off_observed'] = row[f'home_{unit_type}_epa']
+                home_game_record[f'{unit_type}_def_observed'] = row[f'away_{unit_type}_epa']
+                away_game_record[f'{unit_type}_off_observed'] = row[f'away_{unit_type}_epa']
+                away_game_record[f'{unit_type}_def_observed'] = row[f'home_{unit_type}_epa']
+                ## calculate value created ##
+                ## for pass units, need QB adjustments in EPA scale ##
+                if unit_type == 'pass':
+                    home_qb_adj_epa = home_qb_adj / 25
+                    away_qb_adj_epa = away_qb_adj / 25
+                else:
+                    home_qb_adj_epa = 0
+                    away_qb_adj_epa = 0
+                ## offense value created: (observed - league_avg) - (context - opponent) ##
+                home_game_record[f'{unit_type}_off_value_created'] = (
+                    ## what happened ##
+                    (row[f'home_{unit_type}_epa'] - league_avg) -
+                    ## what we would have expected to happen independent of the offense ##
+                    ((home_hfa_adj + weather_adj) - away_def_unit.value)
+                )
+                away_game_record[f'{unit_type}_off_value_created'] = (
+                    ## what happened ##
+                    (row[f'away_{unit_type}_epa'] - league_avg) -
+                    ## what we would have expected to happen independent of the offense ##
+                    ((away_hfa_adj + weather_adj) - home_def_unit.value)
+                )
+                ## defense value created: (opponent + context) - (observed - league_avg) ##
+                home_game_record[f'{unit_type}_def_value_created'] = (
+                    ## what we would have expected to happen ##
+                    (away_off_unit.value + (away_qb_adj_epa + away_hfa_adj + weather_adj)) -
+                    ## what happened ##
+                    (row[f'away_{unit_type}_epa'] - league_avg)
+                )
+                away_game_record[f'{unit_type}_def_value_created'] = (
+                    ## what we would have expected to happen ##
+                    (home_off_unit.value + (home_qb_adj_epa + home_hfa_adj + weather_adj)) -
+                    ## what happened ##
+                    (row[f'home_{unit_type}_epa'] - league_avg)
+                )
+                ## store league avg ##
+                home_game_record[f'{unit_type}_league_avg'] = league_avg
+                away_game_record[f'{unit_type}_league_avg'] = league_avg
+                ## opponent faced (positive = harder) ##
+                home_game_record[f'{unit_type}_off_faced'] = away_def_unit.value - (home_hfa_adj + weather_adj)
+                away_game_record[f'{unit_type}_off_faced'] = home_def_unit.value - (away_hfa_adj + weather_adj)
+                home_game_record[f'{unit_type}_def_faced'] = away_off_unit.value + (away_qb_adj_epa + away_hfa_adj + weather_adj)
+                away_game_record[f'{unit_type}_def_faced'] = home_off_unit.value + (home_qb_adj_epa + home_hfa_adj + weather_adj)
+                ## update units ##
+                home_off_unit.update(
+                    observed_epa=row[f'home_{unit_type}_epa'],
+                    opponent_value=away_def_unit.value,
+                    hfa_adj=home_hfa_adj,
+                    home_qb_adj=home_qb_adj,
+                    away_qb_adj=away_qb_adj,
+                    weather_adj=weather_adj,
+                    season=row['season'],
+                    coach=row['home_coach'],
+                    is_home=True,
+                    league_avg=league_avg
+                )
+                home_def_unit.update(
+                    observed_epa=row[f'away_{unit_type}_epa'],
+                    opponent_value=away_off_unit.value,
+                    hfa_adj=home_hfa_adj,
+                    home_qb_adj=home_qb_adj,
+                    away_qb_adj=away_qb_adj,
+                    weather_adj=weather_adj,
+                    season=row['season'],
+                    coach=row['home_coach'],
+                    is_home=True,
+                    league_avg=league_avg
+                )
+                away_off_unit.update(
+                    observed_epa=row[f'away_{unit_type}_epa'],
+                    opponent_value=home_def_unit.value,
+                    hfa_adj=away_hfa_adj,
+                    home_qb_adj=away_qb_adj,
+                    away_qb_adj=home_qb_adj,
+                    weather_adj=weather_adj,
+                    season=row['season'],
+                    coach=row['away_coach'],
+                    is_home=False,
+                    league_avg=league_avg
+                )
+                away_def_unit.update(
+                    observed_epa=row[f'home_{unit_type}_epa'],
+                    opponent_value=home_off_unit.value,
+                    hfa_adj=away_hfa_adj,
+                    home_qb_adj=away_qb_adj,
+                    away_qb_adj=home_qb_adj,
+                    weather_adj=weather_adj,
+                    season=row['season'],
+                    coach=row['away_coach'],
+                    is_home=False,
+                    league_avg=league_avg
+                )
+                ## update league baseline ##
+                self.league_baseline.update(unit_type, row[f'home_{unit_type}_epa'], row['season'])
+                self.league_baseline.update(unit_type, row[f'away_{unit_type}_epa'], row['season'])
+            else:
+                ## unplayed: set observed, value_created, league_avg, and faced to NaN ##
+                home_game_record[f'{unit_type}_off_observed'] = None
+                home_game_record[f'{unit_type}_def_observed'] = None
+                away_game_record[f'{unit_type}_off_observed'] = None
+                away_game_record[f'{unit_type}_def_observed'] = None
+                home_game_record[f'{unit_type}_off_value_created'] = None
+                home_game_record[f'{unit_type}_def_value_created'] = None
+                away_game_record[f'{unit_type}_off_value_created'] = None
+                away_game_record[f'{unit_type}_def_value_created'] = None
+                home_game_record[f'{unit_type}_league_avg'] = None
+                away_game_record[f'{unit_type}_league_avg'] = None
+                home_game_record[f'{unit_type}_off_faced'] = None
+                home_game_record[f'{unit_type}_def_faced'] = None
+                away_game_record[f'{unit_type}_off_faced'] = None
+                away_game_record[f'{unit_type}_def_faced'] = None
+        ## update league QB baseline (only for played games) ##
+        if has_result:
+            self.league_qb.update(home_qb_value)
+            self.league_qb.update(away_qb_value)
+        ## update record for post-game values ##
+        if has_result:
+            home_game_record = home_game_record | {
+                'pass_off_value_post': home_team.pass_off.value,
+                'rush_off_value_post': home_team.rush_off.value,
+                'st_off_value_post': home_team.st_off.value,
+                'pass_def_value_post': home_team.pass_def.value,
+                'rush_def_value_post': home_team.rush_def.value,
+                'st_def_value_post': home_team.st_def.value,
+            }
+            away_game_record = away_game_record | {
+                'pass_off_value_post': away_team.pass_off.value,
+                'rush_off_value_post': away_team.rush_off.value,
+                'st_off_value_post': away_team.st_off.value,
+                'pass_def_value_post': away_team.pass_def.value,
+                'rush_def_value_post': away_team.rush_def.value,
+                'st_def_value_post': away_team.st_def.value,
+            }
+        else:
+            ## unplayed: set post-game values to NaN ##
+            home_game_record = home_game_record | {
+                'pass_off_value_post': None,
+                'rush_off_value_post': None,
+                'st_off_value_post': None,
+                'pass_def_value_post': None,
+                'rush_def_value_post': None,
+                'st_def_value_post': None,
+            }
+            away_game_record = away_game_record | {
+                'pass_off_value_post': None,
+                'rush_off_value_post': None,
+                'st_off_value_post': None,
+                'pass_def_value_post': None,
+                'rush_def_value_post': None,
+                'st_def_value_post': None,
+            }
         ## update states ##
         self.update_team(home_team)
         self.update_team(away_team)

@@ -7,7 +7,7 @@ play-by-play data. Uses EWMA (Exponentially Weighted Moving Average) updates
 with offseason regression.
 '''
 
-__version__ = '0.2.1'
+__version__ = '0.3.0'
 
 ## import main classes for easy access ##
 from .Data import DataLoader, DataSplitter

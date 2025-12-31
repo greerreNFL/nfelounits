@@ -30,7 +30,7 @@ config = ModelConfig.from_file()
 model = UnitModel(unit_games, config.values)
 model.run()
 
-# Get results with unit ratings and win probabilities
+# Get results as DataFrame of TeamGameRecord entries
 results = model.get_results_df()
 print(results[['team', 'win_prob', 'pass_off_expected', 'rush_off_expected']])
 ```
@@ -135,6 +135,35 @@ grader = UnitGrader(model.teams)
 grades = grader.get_grades(season=2023, week=10)
 ```
 
+### Processing & Output
+The package includes processors that transform model output into analysis-ready formats:
+
+```python
+from nfelounits.Processing import (
+    UnitTeamsProcessor,
+    UnitTeamsNormalizationProcessor,
+    ValueCreatedProcessor,
+    OpponentFacedProcessor
+)
+
+# After running model, create processed outputs
+processor = ValueCreatedProcessor(model.team_game_records)
+processor.save()  # saves to Output/value_created.csv
+
+processor = OpponentFacedProcessor(model.team_game_records)
+processor.save()  # saves to Output/faced.csv
+```
+
+**Output Files:**
+- `units.csv` - Raw unit values (pre/post game)
+- `units_normalized.csv` - Era-adjusted unit values with percentiles
+- `value_created.csv` - Season-to-date value created per unit (normalized)
+- `faced.csv` - Season-to-date opponent difficulty faced per unit (normalized)
+
+**Key Concepts:**
+- **Value Created**: Performance above/below what opponent + context would predict for an average team
+- **Opponent Faced**: Schedule difficulty (positive = harder opponents)
+
 ## Configuration Parameters
 
 The model uses parameters organized into two main sections:
@@ -198,8 +227,23 @@ Core model for tracking unit performance over time.
 **Methods:**
 - `__init__(data, config)` - Initialize model
 - `run()` - Execute model through all games
-- `get_results_df()` - Export results as DataFrame
+- `get_results_df()` - Export results as DataFrame of `TeamGameRecord` entries
 - `get_team(team_code)` - Access specific team's units
+
+**Properties:**
+- `team_game_records` - List of `TeamGameRecord` dicts containing per-team, per-game output
+
+#### `TeamGameRecord`
+TypedDict defining the structure of model output records. Each record contains:
+- Game identifiers: `game_id`, `season`, `week`, `team`, `opponent`, `is_home`
+- QB data: `qb_value`, `qb_adj`, `coach`
+- Pre-game unit values: `{unit}_{side}_value_pre` for pass/rush/st × off/def
+- Elo data: `elo`, `context_adj`, `win_prob`
+- Expected/observed EPA: `{unit}_{side}_expected`, `{unit}_{side}_observed`
+- Value created: `{unit}_{side}_value_created` - performance vs opponent/context expectation
+- Opponent faced: `{unit}_{side}_faced` - schedule difficulty (positive = harder)
+- League averages: `{unit}_league_avg` for pass/rush/st
+- Post-game unit values: `{unit}_{side}_value_post`
 
 #### `ModelConfig`
 Configuration container with parameter management and nested structure support.
@@ -358,12 +402,15 @@ nfelounits/
 │   └── DataSplitter.py    # Train/test labeling utilities
 ├── Model/
 │   ├── UnitModel.py       # Main model implementation
-│   ├── Team.py            # Team container with units
-│   ├── Unit.py            # Individual unit tracking
-│   ├── EloTranslator.py   # Unit EPA → Elo → Win probability
-│   ├── LeagueBaseline.py  # League-wide EPA tracking
-│   ├── GameContext.py     # Game context adjustments
-│   └── Types.py           # Enum definitions
+│   ├── Entities/
+│   │   ├── Team.py        # Team container with units
+│   │   ├── Unit.py        # Individual unit tracking
+│   │   └── Types.py       # Enum definitions and TeamGameRecord
+│   ├── Mechanics/
+│   │   ├── EloTranslator.py   # Unit EPA → Elo → Win probability
+│   │   └── GameContext.py     # Game context adjustments
+│   └── State/
+│       └── UnitModelStateManager.py  # Model state persistence
 ├── Optimizer/
 │   ├── BaseOptimizer.py   # Abstract base optimizer class
 │   ├── UnitOptimizer.py   # Optimize unit parameters (MAE)
@@ -371,6 +418,11 @@ nfelounits/
 │   └── ModelConfig.py     # Configuration management
 ├── Performance/
 │   └── UnitGrader.py      # Performance evaluation
+├── Processing/
+│   ├── BaseProcessor.py   # Abstract base for output processors
+│   ├── UnitTeamsProcessor.py      # Standard unit output
+│   ├── NormalizationProcessor.py  # Era-adjusted output
+│   └── Utils/             # Processing utilities
 ├── Utilities/
 │   ├── IdConverters.py    # ID format conversion helpers
 │   ├── CurveUtils.py      # Activation funcs for adjustments
