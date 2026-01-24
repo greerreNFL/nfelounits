@@ -9,7 +9,11 @@ from ..Data import DataLoader
 from ..Model import UnitModel
 from ..Optimizer import ModelConfig
 from ..Performance import UnitGrader
-from ..Processing import UnitTeamsProcessor, UnitTeamsNormalizationProcessor, ValueCreatedProcessor, OpponentFacedProcessor
+from ..Processing import (
+    UnitTeamsProcessor, UnitTeamsNormalizationProcessor,
+    ValueCreatedProcessor, OpponentFacedProcessor,
+    EloProcessor
+)
 
 
 def run(output_path: str = None):
@@ -66,3 +70,6 @@ def run(output_path: str = None):
     processor = OpponentFacedProcessor(model.team_game_records)
     processor.save(output_path)
     print(f"   ✓ Saved Opponent Faced Output")
+    processor = EloProcessor(model.team_game_records)
+    processor.save(output_path)
+    print(f"   ✓ Saved Elo Output")

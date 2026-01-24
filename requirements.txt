@@ -1,0 +1,12 @@
+# nfelounits dependencies
+
+# Core data manipulation
+pandas==2.1.4
+numpy==1.26.2
+
+# Optimization
+scipy==1.11.4
+
+# NFL data loading
+# Install from: https://github.com/greerreNFL/nfelodcm
+nfelodcm==0.1.24

@@ -9,6 +9,7 @@ from .UnitTeamsProcessor import UnitTeamsProcessor
 from .NormalizationProcessor import UnitTeamsNormalizationProcessor
 from .ValueCreatedProcessor import ValueCreatedProcessor
 from .OpponentFacedProcessor import OpponentFacedProcessor
+from .EloProcessor import EloProcessor
 from .Utils import create_week_index, calculate_window, calculate_all_windows, forward_fill_weeks, normalize
 
 __all__ = [
@@ -17,6 +18,7 @@ __all__ = [
     'UnitTeamsNormalizationProcessor',
     'ValueCreatedProcessor',
     'OpponentFacedProcessor',
+    'EloProcessor',
     ## utils ##
     'create_week_index',
     'calculate_window',
