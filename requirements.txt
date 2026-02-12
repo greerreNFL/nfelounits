@@ -8,5 +8,4 @@ numpy==1.26.2
 scipy==1.11.4
 
 # NFL data loading
-# Install from: https://github.com/greerreNFL/nfelodcm
 nfelodcm==0.1.24

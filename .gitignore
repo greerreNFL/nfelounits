@@ -29,3 +29,7 @@ venv/
 # System
 .DS_Store
 *.DS_Store
+
+# AI
+.cursor/
+CLAUDE.md

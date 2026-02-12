@@ -24,11 +24,23 @@
             "opti_min": 0.0,
             "opti_max": 0.15
         },
+        "pass_off_trend_sf": {
+            "value": 0.0,
+            "description": "Trend smoothing factor for pass offense (Holt gamma)",
+            "opti_min": 0.0,
+            "opti_max": 0.5
+        },
         "pass_def_sf": {
             "value": 0.0413,
             "description": "Smoothing factor for pass defense EWMA updates",
             "opti_min": 0.0,
             "opti_max": 0.15
+        },
+        "pass_def_trend_sf": {
+            "value": 0.0,
+            "description": "Trend smoothing factor for pass defense (Holt gamma)",
+            "opti_min": 0.0,
+            "opti_max": 0.5
         },
         "pass_off_reversion": {
             "value": 0.0,
@@ -48,11 +60,23 @@
             "opti_min": 0.0,
             "opti_max": 0.15
         },
+        "rush_off_trend_sf": {
+            "value": 0.0,
+            "description": "Trend smoothing factor for rush offense (Holt gamma)",
+            "opti_min": 0.0,
+            "opti_max": 0.5
+        },
         "rush_def_sf": {
             "value": 0.0245,
             "description": "Smoothing factor for rush defense EWMA updates",
             "opti_min": 0.0,
             "opti_max": 0.15
+        },
+        "rush_def_trend_sf": {
+            "value": 0.0,
+            "description": "Trend smoothing factor for rush defense (Holt gamma)",
+            "opti_min": 0.0,
+            "opti_max": 0.5
         },
         "rush_off_reversion": {
             "value": 0.3749,
@@ -72,11 +96,23 @@
             "opti_min": 0.0,
             "opti_max": 0.15
         },
+        "st_off_trend_sf": {
+            "value": 0.0,
+            "description": "Trend smoothing factor for special teams offense (Holt gamma)",
+            "opti_min": 0.0,
+            "opti_max": 0.5
+        },
         "st_def_sf": {
             "value": 0.0151,
             "description": "Smoothing factor for special teams defense EWMA updates",
             "opti_min": 0.0,
             "opti_max": 0.15
+        },
+        "st_def_trend_sf": {
+            "value": 0.0,
+            "description": "Trend smoothing factor for special teams defense (Holt gamma)",
+            "opti_min": 0.0,
+            "opti_max": 0.5
         },
         "st_off_reversion": {
             "value": 0.3325,

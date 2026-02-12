@@ -4,9 +4,9 @@ Standardized Model Optimization Script
 Runs both UnitOptimizer and EloOptimizer with multiple random starts,
 selects the best results, and updates the model configuration.
 '''
-
 import pandas as pd
 import datetime
+import pathlib
 
 from ..Data import DataLoader, DataSplitter
 from ..Model import UnitModel
@@ -28,12 +28,14 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
     print("OPTIMIZING UNIT PARAMETERS (BY UNIT)")
     print("=" * 80)
     
-    # Define parameter subsets for each unit (includes weather params)
+    # Define parameter subsets for each unit (includes weather params and trend params)
     unit_subsets = {
         'pass': [
             'unit_config.pass_hfa_share',
             'unit_config.pass_off_sf',
+            'unit_config.pass_off_trend_sf',
             'unit_config.pass_def_sf',
+            'unit_config.pass_def_trend_sf',
             'unit_config.pass_off_reversion',
             'unit_config.pass_def_reversion',
             'unit_config.league_pass_sf',
@@ -46,7 +48,9 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
         'rush': [
             'unit_config.rush_hfa_share',
             'unit_config.rush_off_sf',
+            'unit_config.rush_off_trend_sf',
             'unit_config.rush_def_sf',
+            'unit_config.rush_def_trend_sf',
             'unit_config.rush_off_reversion',
             'unit_config.rush_def_reversion',
             'unit_config.league_rush_sf',
@@ -57,7 +61,9 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
         'st': [
             'unit_config.st_hfa_share',
             'unit_config.st_off_sf',
+            'unit_config.st_off_trend_sf',
             'unit_config.st_def_sf',
+            'unit_config.st_def_trend_sf',
             'unit_config.st_off_reversion',
             'unit_config.st_def_reversion',
             'unit_config.league_st_sf',
@@ -66,9 +72,7 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
             'unit_config.st_temp_disc_height'
         ]
     }
-    
     all_unit_params = {}
-    
     # Optimize each unit separately
     for unit_name, subset in unit_subsets.items():
         print(f"\n{'=' * 80}")
@@ -95,13 +99,25 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
             optimizer.optimize(save_result=False, update_config=False)
             best_record = optimizer.get_best_record()
             best_records.append({**best_record, 'round_num': round_num})
-            
+
             print(f"  Best avg MAE this round: {best_record['avg_mae']:.4f}")
             # Show unit-specific MAE if available
             unit_mae_keys = [k for k in best_record.keys() if k.startswith(f'{unit_name}_') and k.endswith('_mae')]
             if unit_mae_keys:
                 for key in unit_mae_keys:
                     print(f"    {key}: {best_record[key]:.4f}")
+
+            # Save best record with full config snapshot to best-per-round CSV
+            full_record = {'round_num': round_num, **best_record}
+            for param_key, param_obj in config.params.items():
+                if param_key not in full_record:
+                    full_record[param_key] = param_obj.value
+            output_dir = pathlib.Path(__file__).parent.parent.resolve() / 'Optimizer' / 'runs'
+            output_dir.mkdir(parents=True, exist_ok=True)
+            bpr_path = output_dir / f'{run_id}_{unit_name}_best_per_round.csv'
+            pd.DataFrame([full_record]).to_csv(
+                bpr_path, mode='a', header=not bpr_path.exists(), index=False
+            )
         
         # Find best result for this unit
         df = pd.DataFrame(best_records)
@@ -173,6 +189,18 @@ def optimize_elo_params(labeled_data: pd.DataFrame, config: ModelConfig, n_round
         print(f"  Train log loss: {best_record['train_log_loss']:.6f}")
         if best_record.get('test_log_loss') is not None:
             print(f"  Test log loss:  {best_record['test_log_loss']:.6f}")
+
+        # Save best record with full config snapshot to best-per-round CSV
+        full_record = {'round_num': round_num, **best_record}
+        for param_key, param_obj in config.params.items():
+            if param_key not in full_record:
+                full_record[param_key] = param_obj.value
+        output_dir = pathlib.Path(__file__).parent.parent.resolve() / 'Optimizer' / 'runs'
+        output_dir.mkdir(parents=True, exist_ok=True)
+        bpr_path = output_dir / f'{run_id}_elo_best_per_round.csv'
+        pd.DataFrame([full_record]).to_csv(
+            bpr_path, mode='a', header=not bpr_path.exists(), index=False
+        )
     # Find the best overall result
     df = pd.DataFrame(best_records)
     df = df.sort_values('train_log_loss')
