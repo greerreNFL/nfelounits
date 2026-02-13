@@ -102,11 +102,11 @@ class UnitModel:
         ## calculate QB adjustments (handles season rollover and updates internally) ##
         home_qb_adj = home_team.qb.get_adjustment(home_qb_name, home_qb_value, row['season'])
         away_qb_adj = away_team.qb.get_adjustment(away_qb_name, away_qb_value, row['season'])
-        ## create game context for weather and HFA adjustments ##
+        ## game context for weather and location effect (units) ##
         game_context = GameContext(
             game_id=row['game_id'],
             config=self.config,
-            hfa_base=row['hfa_base'],
+            location_effect_base=row['hfa_base'],
             temp=row.get('temp'),
             wind=row.get('wind')
         )
@@ -186,12 +186,12 @@ class UnitModel:
             league_avg = self.league_baseline.get_avg(unit_type, row['season'])
             ## get adjustments for this unit type ##
             weather_adj = game_context.weather_adj(unit_type)
-            home_hfa_adj = game_context.hfa_adj(unit_type, is_home=True)
-            away_hfa_adj = game_context.hfa_adj(unit_type, is_home=False)
+            home_location_effect_adj = game_context.location_effect_adj(unit_type, is_home=True)
+            away_location_effect_adj = game_context.location_effect_adj(unit_type, is_home=False)
             ## calculate expected EPA (always, even for unplayed) ##
             home_off_expected = home_off_unit.get_expected_epa(
                 opponent_value=away_def_unit.value,
-                hfa_adj=home_hfa_adj,
+                location_effect_adj=home_location_effect_adj,
                 home_qb_adj=home_qb_adj,
                 away_qb_adj=away_qb_adj,
                 weather_adj=weather_adj,
@@ -200,7 +200,7 @@ class UnitModel:
             )
             home_def_expected = home_def_unit.get_expected_epa(
                 opponent_value=away_off_unit.value,
-                hfa_adj=home_hfa_adj,
+                location_effect_adj=home_location_effect_adj,
                 home_qb_adj=home_qb_adj,
                 away_qb_adj=away_qb_adj,
                 weather_adj=weather_adj,
@@ -209,7 +209,7 @@ class UnitModel:
             )
             away_off_expected = away_off_unit.get_expected_epa(
                 opponent_value=home_def_unit.value,
-                hfa_adj=away_hfa_adj,
+                location_effect_adj=away_location_effect_adj,
                 home_qb_adj=home_qb_adj,
                 away_qb_adj=away_qb_adj,
                 weather_adj=weather_adj,
@@ -218,7 +218,7 @@ class UnitModel:
             )
             away_def_expected = away_def_unit.get_expected_epa(
                 opponent_value=home_off_unit.value,
-                hfa_adj=away_hfa_adj,
+                location_effect_adj=away_location_effect_adj,
                 home_qb_adj=home_qb_adj,
                 away_qb_adj=away_qb_adj,
                 weather_adj=weather_adj,
@@ -249,25 +249,25 @@ class UnitModel:
                 home_game_record[f'{unit_type}_off_value_created'] = (
                     ## what happened ##
                     (row[f'home_{unit_type}_epa'] - league_avg) -
-                    ## what we would have expected to happen independent of the offense ##
-                    ((home_hfa_adj + weather_adj) - away_def_unit.value)
+                    ## what we would have expected independent of the offense (location_effect + weather) ##
+                    ((home_location_effect_adj + weather_adj) - away_def_unit.value)
                 )
                 away_game_record[f'{unit_type}_off_value_created'] = (
                     ## what happened ##
                     (row[f'away_{unit_type}_epa'] - league_avg) -
-                    ## what we would have expected to happen independent of the offense ##
-                    ((away_hfa_adj + weather_adj) - home_def_unit.value)
+                    ## what we would have expected independent of the offense (location_effect + weather) ##
+                    ((away_location_effect_adj + weather_adj) - home_def_unit.value)
                 )
                 ## defense value created: (opponent + context) - (observed - league_avg) ##
                 home_game_record[f'{unit_type}_def_value_created'] = (
                     ## what we would have expected to happen ##
-                    (away_off_unit.value + (away_qb_adj_epa + away_hfa_adj + weather_adj)) -
+                    (away_off_unit.value + (away_qb_adj_epa + away_location_effect_adj + weather_adj)) -
                     ## what happened ##
                     (row[f'away_{unit_type}_epa'] - league_avg)
                 )
                 away_game_record[f'{unit_type}_def_value_created'] = (
                     ## what we would have expected to happen ##
-                    (home_off_unit.value + (home_qb_adj_epa + home_hfa_adj + weather_adj)) -
+                    (home_off_unit.value + (home_qb_adj_epa + home_location_effect_adj + weather_adj)) -
                     ## what happened ##
                     (row[f'home_{unit_type}_epa'] - league_avg)
                 )
@@ -275,15 +275,15 @@ class UnitModel:
                 home_game_record[f'{unit_type}_league_avg'] = league_avg
                 away_game_record[f'{unit_type}_league_avg'] = league_avg
                 ## opponent faced (positive = harder) ##
-                home_game_record[f'{unit_type}_off_faced'] = away_def_unit.value - (home_hfa_adj + weather_adj)
-                away_game_record[f'{unit_type}_off_faced'] = home_def_unit.value - (away_hfa_adj + weather_adj)
-                home_game_record[f'{unit_type}_def_faced'] = away_off_unit.value + (away_qb_adj_epa + away_hfa_adj + weather_adj)
-                away_game_record[f'{unit_type}_def_faced'] = home_off_unit.value + (home_qb_adj_epa + home_hfa_adj + weather_adj)
+                home_game_record[f'{unit_type}_off_faced'] = away_def_unit.value - (home_location_effect_adj + weather_adj)
+                away_game_record[f'{unit_type}_off_faced'] = home_def_unit.value - (away_location_effect_adj + weather_adj)
+                home_game_record[f'{unit_type}_def_faced'] = away_off_unit.value + (away_qb_adj_epa + away_location_effect_adj + weather_adj)
+                away_game_record[f'{unit_type}_def_faced'] = home_off_unit.value + (home_qb_adj_epa + home_location_effect_adj + weather_adj)
                 ## update units ##
                 home_off_unit.update(
                     observed_epa=row[f'home_{unit_type}_epa'],
                     opponent_value=away_def_unit.value,
-                    hfa_adj=home_hfa_adj,
+                    location_effect_adj=home_location_effect_adj,
                     home_qb_adj=home_qb_adj,
                     away_qb_adj=away_qb_adj,
                     weather_adj=weather_adj,
@@ -295,7 +295,7 @@ class UnitModel:
                 home_def_unit.update(
                     observed_epa=row[f'away_{unit_type}_epa'],
                     opponent_value=away_off_unit.value,
-                    hfa_adj=home_hfa_adj,
+                    location_effect_adj=home_location_effect_adj,
                     home_qb_adj=home_qb_adj,
                     away_qb_adj=away_qb_adj,
                     weather_adj=weather_adj,
@@ -307,7 +307,7 @@ class UnitModel:
                 away_off_unit.update(
                     observed_epa=row[f'away_{unit_type}_epa'],
                     opponent_value=home_def_unit.value,
-                    hfa_adj=away_hfa_adj,
+                    location_effect_adj=away_location_effect_adj,
                     home_qb_adj=home_qb_adj,
                     away_qb_adj=away_qb_adj,
                     weather_adj=weather_adj,
@@ -319,7 +319,7 @@ class UnitModel:
                 away_def_unit.update(
                     observed_epa=row[f'home_{unit_type}_epa'],
                     opponent_value=home_off_unit.value,
-                    hfa_adj=away_hfa_adj,
+                    location_effect_adj=away_location_effect_adj,
                     home_qb_adj=home_qb_adj,
                     away_qb_adj=away_qb_adj,
                     weather_adj=weather_adj,

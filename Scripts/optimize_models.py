@@ -31,7 +31,7 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
     # Define parameter subsets for each unit (includes weather params and trend params)
     unit_subsets = {
         'pass': [
-            'unit_config.pass_hfa_share',
+            'unit_config.pass_location_effect_share',
             'unit_config.pass_off_sf',
             'unit_config.pass_off_trend_sf',
             'unit_config.pass_def_sf',
@@ -46,7 +46,7 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
             'unit_config.league_qb_sf',
         ],
         'rush': [
-            'unit_config.rush_hfa_share',
+            'unit_config.rush_location_effect_share',
             'unit_config.rush_off_sf',
             'unit_config.rush_off_trend_sf',
             'unit_config.rush_def_sf',
@@ -59,7 +59,7 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
             'unit_config.rush_temp_disc_height'
         ],
         'st': [
-            'unit_config.st_hfa_share',
+            'unit_config.st_location_effect_share',
             'unit_config.st_off_sf',
             'unit_config.st_off_trend_sf',
             'unit_config.st_def_sf',

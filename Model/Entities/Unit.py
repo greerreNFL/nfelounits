@@ -33,7 +33,7 @@ class Unit:
         ## base values ##
         observed_epa: float, opponent_value: float,
         ## adj values ##
-        hfa_adj: float, home_qb_adj: float, away_qb_adj: float,
+        location_effect_adj: float, home_qb_adj: float, away_qb_adj: float,
         weather_adj: float,
         ## state values ##
         season: int, coach: str,
@@ -47,7 +47,7 @@ class Unit:
         Parameters:
         * observed_epa: Actual EPA generated (off) or allowed (def) by unit in this game
         * opponent_value: Opponent unit's pre-game value for adjustment
-        * hfa_adj: Home field advantage adjustment (already calculated for this unit)
+        * location_effect_adj: Location effect adjustment (already calculated for this unit)
         * home_qb_adj: Home team QB adjustment
         * away_qb_adj: Away team QB adjustment
         * weather_adj: Weather adjustment (negative for bad weather, add directly)
@@ -77,13 +77,13 @@ class Unit:
         ## calculate opponent-adjusted value ##
         if self.side == 'off':
             observed_performance = (
-                observed_epa - (qb_adj + hfa_adj + weather_adj) + ## observed value adjusted for QB, HFA, and weather
+                observed_epa - (qb_adj + location_effect_adj + weather_adj) + ## observed value adjusted for QB, location effect, and weather
                 opponent_value - ## adjust for opponent difficulty (good defense = positive, makes this harder)
                 league_avg ## subtract league average to center around 0
             )
         else:  ## def ##
             observed_performance = (
-                opponent_value + league_avg + (opp_qb_adj - hfa_adj + weather_adj) - ## expected absolute EPA = opponent relative value + league avg + adjs
+                opponent_value + league_avg + (opp_qb_adj - location_effect_adj + weather_adj) - ## expected absolute EPA = opponent relative value + league avg + adjs
                 observed_epa ## subtract observed absolute EPA to get defensive performance relative to league average
             )
         ## update value using Holt-style exponential smoothing ##
@@ -177,7 +177,7 @@ class Unit:
     
     def get_expected_epa(self,
         opponent_value: float,
-        hfa_adj: float,
+        location_effect_adj: float,
         home_qb_adj: float,
         away_qb_adj: float,
         weather_adj: float,
@@ -186,19 +186,19 @@ class Unit:
     ) -> float:
         '''
         Calculate expected EPA for this unit given game conditions
-        
+
         Mirrors the adjustment logic from update() but returns expected EPA
         instead of updating the unit value
-        
+
         Parameters:
         * opponent_value: Opponent unit's pre-game value
-        * hfa_adj: Home field advantage adjustment (already calculated for this unit)
+        * location_effect_adj: Location effect adjustment (already calculated for this unit)
         * home_qb_adj: Home team QB adjustment
         * away_qb_adj: Away team QB adjustment
         * weather_adj: Weather adjustment (negative for bad weather, add directly)
         * is_home: Whether this unit's team is home
         * league_avg: League-wide average EPA for this unit type
-        
+
         Returns:
         * Expected EPA for this unit
         '''
@@ -214,13 +214,13 @@ class Unit:
         if self.side == 'off':
             expected = (
                 unit_forecast + ## team's unit value + trend (relative to league avg)
-                (qb_adj + hfa_adj + weather_adj) - ## add team advantages and weather adjustment
+                (qb_adj + location_effect_adj + weather_adj) - ## add team advantages and weather adjustment
                 opponent_value + ## subtract opponent defense (good defense = positive, so subtract)
                 league_avg ## add back league average since unit value is relative
             )
         else:  ## def ##
             expected = (
-                opponent_value + (opp_qb_adj - hfa_adj + weather_adj) + ## opponent's expected EPA given their advantages and weather
+                opponent_value + (opp_qb_adj - location_effect_adj + weather_adj) + ## opponent's expected EPA given their advantages and weather
                 league_avg ## add back league average since opponent unit value is relative
             )
         return expected

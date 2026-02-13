@@ -18,7 +18,7 @@ class GameContext:
     ## initing meta ##
     game_id: str
     config: Dict[str, Any]
-    hfa_base: float
+    location_effect_base: float
     ## optional ##
     temp: Optional[float] = None
     wind: Optional[float] = None
@@ -59,19 +59,19 @@ class GameContext:
         ## return negative since bad weather hurts offense ##
         return -1 * (temp_adj + wind_adj)
     
-    def hfa_adj(self, unit_type: str, is_home: bool) -> float:
+    def location_effect_adj(self, unit_type: str, is_home: bool) -> float:
         '''
-        Calculate the home field advantage adjustment for a specific unit type
-        
+        Calculate the location effect adjustment for a specific unit type.
+        Positive for home teams, negative for away; negative share = discount home expectation.
+
         Parameters:
         * unit_type: The unit type ('pass', 'rush', or 'st')
         * is_home: Whether the team is home
-        
+
         Returns:
-        * The HFA adjustment (positive for home teams, negative for away teams)
+        * The location effect adjustment (positive for home, negative for away)
         '''
-        ## if unit is home, receive positive HFA, otherwise negative ##
-        ## divide by 2 since HFA is applied to both home and away teams ##
-        hfa_adj = self.hfa_base / 2 * self.config['unit_config'][f'{unit_type}_hfa_share'] * (1 if is_home else -1)
-        return hfa_adj
+        ## divide by 2 since adjustment is applied to both home and away teams ##
+        adj = self.location_effect_base / 2 * self.config['unit_config'][f'{unit_type}_location_effect_share'] * (1 if is_home else -1)
+        return adj
 
