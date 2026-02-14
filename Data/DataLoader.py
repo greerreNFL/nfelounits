@@ -48,8 +48,14 @@ class DataLoader:
         ## join EPA to games (unplayed games will have null EPA) ##
         games_with_epa = pd.merge(
             games,
-            epa_data[['game_id', 'home_pass_epa', 'home_rush_epa', 'home_st_epa',
-                      'away_pass_epa', 'away_rush_epa', 'away_st_epa']],
+            epa_data[[
+                'game_id', 'home_pass_epa', 'home_rush_epa', 'home_st_epa',
+                'away_pass_epa', 'away_rush_epa', 'away_st_epa',
+                'home_pass_int_epa', 'away_pass_int_epa',
+                'home_pass_qb_fumble_epa', 'away_pass_qb_fumble_epa',
+                'home_pass_nonqb_fumble_epa', 'away_pass_nonqb_fumble_epa',
+                'home_rush_nonqb_fumble_epa', 'away_rush_nonqb_fumble_epa'
+            ]],
             on='game_id',
             how='left'
         )
@@ -223,6 +229,24 @@ class DataLoader:
         pbp['unit_bin'] = numpy.where(pbp['is_st_play'] == 1, 'st', pbp['unit_bin'])
         ## filter to only plays with a unit_bin assignment ##
         pbp = pbp[pbp['unit_bin'].notna()].copy()
+        ## add turnover EPA columns for discounting ##
+        pbp['interception'] = pbp['interception'].fillna(0)
+        pbp['fumble_lost'] = pbp['fumble_lost'].fillna(0)
+        pbp['sack'] = pbp['sack'].fillna(0)
+        pbp['qb_scramble'] = pbp['qb_scramble'].fillna(0)
+        pbp['int_epa'] = numpy.where(pbp['interception'] == 1, pbp['epa'], 0)
+        ## QB fumbles: sack fumbles, scramble fumbles, designed QB run fumbles ##
+        pbp['qb_fumble_epa'] = numpy.where(
+            (pbp['fumble_lost'] == 1) &
+            ((pbp['sack'] == 1) | (pbp['qb_scramble'] == 1) | (pbp['designed_qb_run'] == 1)),
+            pbp['epa'], 0
+        )
+        ## non-QB fumbles: receiver fumbles (pass plays) and all rush fumbles ##
+        pbp['nonqb_fumble_epa'] = numpy.where(
+            (pbp['fumble_lost'] == 1) &
+            ~((pbp['sack'] == 1) | (pbp['qb_scramble'] == 1) | (pbp['designed_qb_run'] == 1)),
+            pbp['epa'], 0
+        )
         return pbp
     
     def aggregate_games(self, parsed_pbp: pd.DataFrame) -> pd.DataFrame:
@@ -241,7 +265,10 @@ class DataLoader:
             'home_team', 'away_team',
             'posteam', 'defteam', 'unit_bin'
         ]).agg(
-            epa=('epa', 'sum')
+            epa=('epa', 'sum'),
+            int_epa=('int_epa', 'sum'),
+            qb_fumble_epa=('qb_fumble_epa', 'sum'),
+            nonqb_fumble_epa=('nonqb_fumble_epa', 'sum')
         ).reset_index()
         ## pivot to get EPA by unit for each home team ##
         home_units = agg[agg['posteam'] == agg['home_team']].pivot_table(
@@ -257,9 +284,55 @@ class DataLoader:
             values='epa',
             aggfunc='sum'
         ).reset_index()
+        ## pivot turnover EPA columns ##
+        home_int = agg[agg['posteam'] == agg['home_team']].pivot_table(
+            index=['game_id'],
+            columns='unit_bin',
+            values='int_epa',
+            aggfunc='sum'
+        ).reset_index().rename(columns={'pass': 'home_pass_int_epa'})
+        away_int = agg[agg['posteam'] == agg['away_team']].pivot_table(
+            index=['game_id'],
+            columns='unit_bin',
+            values='int_epa',
+            aggfunc='sum'
+        ).reset_index().rename(columns={'pass': 'away_pass_int_epa'})
+        home_qb_fum = agg[agg['posteam'] == agg['home_team']].pivot_table(
+            index=['game_id'],
+            columns='unit_bin',
+            values='qb_fumble_epa',
+            aggfunc='sum'
+        ).reset_index().rename(columns={'pass': 'home_pass_qb_fumble_epa'})
+        away_qb_fum = agg[agg['posteam'] == agg['away_team']].pivot_table(
+            index=['game_id'],
+            columns='unit_bin',
+            values='qb_fumble_epa',
+            aggfunc='sum'
+        ).reset_index().rename(columns={'pass': 'away_pass_qb_fumble_epa'})
+        home_nonqb_fum = agg[agg['posteam'] == agg['home_team']].pivot_table(
+            index=['game_id'],
+            columns='unit_bin',
+            values='nonqb_fumble_epa',
+            aggfunc='sum'
+        ).reset_index().rename(columns={'pass': 'home_pass_nonqb_fumble_epa', 'rush': 'home_rush_nonqb_fumble_epa'})
+        away_nonqb_fum = agg[agg['posteam'] == agg['away_team']].pivot_table(
+            index=['game_id'],
+            columns='unit_bin',
+            values='nonqb_fumble_epa',
+            aggfunc='sum'
+        ).reset_index().rename(columns={
+            'pass': 'away_pass_nonqb_fumble_epa',
+            'rush': 'away_rush_nonqb_fumble_epa'
+        })
         ## remove column names ##
         home_units.columns.name = None
         away_units.columns.name = None
+        home_int.columns.name = None
+        away_int.columns.name = None
+        home_qb_fum.columns.name = None
+        away_qb_fum.columns.name = None
+        home_nonqb_fum.columns.name = None
+        away_nonqb_fum.columns.name = None
         ## merge home and away units ##
         games = pd.merge(
             home_units.rename(columns={
@@ -275,6 +348,45 @@ class DataLoader:
             on=['game_id', 'season', 'week'],
             how='outer'
         )
+        ## merge turnover EPA columns ##
+        games = games.merge(
+            home_int[['game_id', 'home_pass_int_epa']],
+            on='game_id',
+            how='left'
+        )
+        games = games.merge(
+            away_int[['game_id', 'away_pass_int_epa']],
+            on='game_id',
+            how='left'
+        )
+        games = games.merge(
+            home_qb_fum[['game_id', 'home_pass_qb_fumble_epa']],
+            on='game_id',
+            how='left'
+        )
+        games = games.merge(
+            away_qb_fum[['game_id', 'away_pass_qb_fumble_epa']],
+            on='game_id',
+            how='left'
+        )
+        games = games.merge(
+            home_nonqb_fum[['game_id', 'home_pass_nonqb_fumble_epa', 'home_rush_nonqb_fumble_epa']],
+            on='game_id',
+            how='left'
+        )
+        games = games.merge(
+            away_nonqb_fum[['game_id', 'away_pass_nonqb_fumble_epa', 'away_rush_nonqb_fumble_epa']],
+            on='game_id',
+            how='left'
+        )
+        ## fill missing turnover columns (games with no turnovers in a unit) ##
+        turnover_cols = [
+            'home_pass_int_epa', 'away_pass_int_epa',
+            'home_pass_qb_fumble_epa', 'away_pass_qb_fumble_epa',
+            'home_pass_nonqb_fumble_epa', 'away_pass_nonqb_fumble_epa',
+            'home_rush_nonqb_fumble_epa', 'away_rush_nonqb_fumble_epa'
+        ]
+        games[turnover_cols] = games[turnover_cols].fillna(0)
         return games
 
     

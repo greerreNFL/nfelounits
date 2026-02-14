@@ -174,7 +174,6 @@ class UnitModel:
         away_game_record['elo'] = away_elo
         away_game_record['context_adj'] = away_context_adj
         away_game_record['win_prob'] = 1-home_win_prob
-
         ## Process units - expected values always, observed/updates only for played games ##
         for unit_type in ['pass', 'rush', 'st']:
             ## access units from team objects ##
@@ -232,7 +231,23 @@ class UnitModel:
             away_game_record[f'{unit_type}_def_expected'] = away_def_expected
             ## observed and updates only for played games ##
             if has_result:
-                ## store observed in records ##
+                ## compute turnover-discounted EPA for unit updates ##
+                home_epa_for_update = row[f'home_{unit_type}_epa']
+                away_epa_for_update = row[f'away_{unit_type}_epa']
+                nonqb_fum_disc = self.config['unit_config'].get('nonqb_fumble_disc', 0.0)
+                if unit_type == 'pass':
+                    int_disc = self.config['unit_config'].get('pass_int_disc', 0.0)
+                    qb_fum_disc = self.config['unit_config'].get('pass_qb_fumble_disc', 0.0)
+                    home_epa_for_update -= int_disc * row.get('home_pass_int_epa', 0)
+                    away_epa_for_update -= int_disc * row.get('away_pass_int_epa', 0)
+                    home_epa_for_update -= qb_fum_disc * row.get('home_pass_qb_fumble_epa', 0)
+                    away_epa_for_update -= qb_fum_disc * row.get('away_pass_qb_fumble_epa', 0)
+                    home_epa_for_update -= nonqb_fum_disc * row.get('home_pass_nonqb_fumble_epa', 0)
+                    away_epa_for_update -= nonqb_fum_disc * row.get('away_pass_nonqb_fumble_epa', 0)
+                elif unit_type == 'rush':
+                    home_epa_for_update -= nonqb_fum_disc * row.get('home_rush_nonqb_fumble_epa', 0)
+                    away_epa_for_update -= nonqb_fum_disc * row.get('away_rush_nonqb_fumble_epa', 0)
+                ## store observed in records (raw EPA, not discounted) ##
                 home_game_record[f'{unit_type}_off_observed'] = row[f'home_{unit_type}_epa']
                 home_game_record[f'{unit_type}_def_observed'] = row[f'away_{unit_type}_epa']
                 away_game_record[f'{unit_type}_off_observed'] = row[f'away_{unit_type}_epa']
@@ -279,9 +294,9 @@ class UnitModel:
                 away_game_record[f'{unit_type}_off_faced'] = home_def_unit.value - (away_location_effect_adj + weather_adj)
                 home_game_record[f'{unit_type}_def_faced'] = away_off_unit.value + (away_qb_adj_epa + away_location_effect_adj + weather_adj)
                 away_game_record[f'{unit_type}_def_faced'] = home_off_unit.value + (home_qb_adj_epa + home_location_effect_adj + weather_adj)
-                ## update units ##
+                ## update units (using turnover-discounted EPA) ##
                 home_off_unit.update(
-                    observed_epa=row[f'home_{unit_type}_epa'],
+                    observed_epa=home_epa_for_update,
                     opponent_value=away_def_unit.value,
                     location_effect_adj=home_location_effect_adj,
                     home_qb_adj=home_qb_adj,
@@ -293,7 +308,7 @@ class UnitModel:
                     league_avg=league_avg
                 )
                 home_def_unit.update(
-                    observed_epa=row[f'away_{unit_type}_epa'],
+                    observed_epa=away_epa_for_update,
                     opponent_value=away_off_unit.value,
                     location_effect_adj=home_location_effect_adj,
                     home_qb_adj=home_qb_adj,
@@ -305,7 +320,7 @@ class UnitModel:
                     league_avg=league_avg
                 )
                 away_off_unit.update(
-                    observed_epa=row[f'away_{unit_type}_epa'],
+                    observed_epa=away_epa_for_update,
                     opponent_value=home_def_unit.value,
                     location_effect_adj=away_location_effect_adj,
                     home_qb_adj=home_qb_adj,
@@ -317,7 +332,7 @@ class UnitModel:
                     league_avg=league_avg
                 )
                 away_def_unit.update(
-                    observed_epa=row[f'home_{unit_type}_epa'],
+                    observed_epa=home_epa_for_update,
                     opponent_value=home_off_unit.value,
                     location_effect_adj=away_location_effect_adj,
                     home_qb_adj=home_qb_adj,

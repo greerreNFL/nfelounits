@@ -1,37 +1,37 @@
 {
     "unit_config": {
         "pass_location_effect_share": {
-            "value": -0.049,
+            "value": -0.0737,
             "description": "Location effect share for pass units (negative = discount home expectation).",
             "opti_min": -1.0,
             "opti_max": 1.0
         },
         "rush_location_effect_share": {
-            "value": -0.1114,
+            "value": -0.1037,
             "description": "Location effect share for rush units (negative = discount home expectation).",
             "opti_min": -1.0,
             "opti_max": 1.0
         },
         "st_location_effect_share": {
-            "value": 0.2443,
+            "value": 0.2447,
             "description": "Location effect share for special teams units (negative = discount home expectation).",
             "opti_min": -1.0,
             "opti_max": 1.0
         },
         "pass_off_sf": {
-            "value": 0.0533,
+            "value": 0.0599,
             "description": "Smoothing factor for pass offense EWMA updates",
             "opti_min": 0.0,
             "opti_max": 0.15
         },
         "pass_off_trend_sf": {
-            "value": 0.0529,
+            "value": 0.0393,
             "description": "Trend smoothing factor for pass offense (Holt gamma)",
             "opti_min": 0.0,
             "opti_max": 0.5
         },
         "pass_def_sf": {
-            "value": 0.043,
+            "value": 0.0452,
             "description": "Smoothing factor for pass defense EWMA updates",
             "opti_min": 0.0,
             "opti_max": 0.15
@@ -49,13 +49,13 @@
             "opti_max": 1.0
         },
         "pass_def_reversion": {
-            "value": 0.4282,
+            "value": 0.4598,
             "description": "Offseason reversion rate for pass defense",
             "opti_min": 0.0,
             "opti_max": 1.0
         },
         "rush_off_sf": {
-            "value": 0.0287,
+            "value": 0.0371,
             "description": "Smoothing factor for rush offense EWMA updates",
             "opti_min": 0.0,
             "opti_max": 0.15
@@ -67,31 +67,31 @@
             "opti_max": 0.5
         },
         "rush_def_sf": {
-            "value": 0.0226,
+            "value": 0.0266,
             "description": "Smoothing factor for rush defense EWMA updates",
             "opti_min": 0.0,
             "opti_max": 0.15
         },
         "rush_def_trend_sf": {
-            "value": 0.0311,
+            "value": 0.0049,
             "description": "Trend smoothing factor for rush defense (Holt gamma)",
             "opti_min": 0.0,
             "opti_max": 0.5
         },
         "rush_off_reversion": {
-            "value": 0.3672,
+            "value": 0.3826,
             "description": "Offseason reversion rate for rush offense",
             "opti_min": 0.0,
             "opti_max": 1.0
         },
         "rush_def_reversion": {
-            "value": 0.4195,
+            "value": 0.5256,
             "description": "Offseason reversion rate for rush defense",
             "opti_min": 0.0,
             "opti_max": 1.0
         },
         "st_off_sf": {
-            "value": 0.0238,
+            "value": 0.0239,
             "description": "Smoothing factor for special teams offense EWMA updates",
             "opti_min": 0.0,
             "opti_max": 0.15
@@ -103,43 +103,43 @@
             "opti_max": 0.5
         },
         "st_def_sf": {
-            "value": 0.0116,
+            "value": 0.0124,
             "description": "Smoothing factor for special teams defense EWMA updates",
             "opti_min": 0.0,
             "opti_max": 0.15
         },
         "st_def_trend_sf": {
-            "value": 0.0491,
+            "value": 0.0362,
             "description": "Trend smoothing factor for special teams defense (Holt gamma)",
             "opti_min": 0.0,
             "opti_max": 0.5
         },
         "st_off_reversion": {
-            "value": 0.3265,
+            "value": 0.33,
             "description": "Offseason reversion rate for special teams offense",
             "opti_min": 0.0,
             "opti_max": 1.0
         },
         "st_def_reversion": {
-            "value": 0.3094,
+            "value": 0.3047,
             "description": "Offseason reversion rate for special teams defense",
             "opti_min": 0.0,
             "opti_max": 1.0
         },
         "league_pass_sf": {
-            "value": 0.0017,
+            "value": 0.0012,
             "description": "Smoothing factor for league-wide pass EPA average",
             "opti_min": 0.0,
             "opti_max": 0.05
         },
         "league_rush_sf": {
-            "value": 0.0033,
+            "value": 0.0012,
             "description": "Smoothing factor for league-wide rush EPA average",
             "opti_min": 0.0,
             "opti_max": 0.05
         },
         "league_st_sf": {
-            "value": 0.0032,
+            "value": 0.0033,
             "description": "Smoothing factor for league-wide special teams EPA average",
             "opti_min": 0.0,
             "opti_max": 0.05
@@ -151,7 +151,7 @@
             "opti_max": 1.0
         },
         "league_rush_reversion": {
-            "value": 0.9008,
+            "value": 0.9288,
             "description": "Offseason reversion rate for league-wide rush EPA average",
             "opti_min": 0.0,
             "opti_max": 1.0
@@ -163,19 +163,19 @@
             "opti_max": 1.0
         },
         "pass_wind_disc_height": {
-            "value": 4.1289,
+            "value": 5.1271,
             "description": "Maximum EPA reduction for wind on passing units",
             "opti_min": 0.0,
             "opti_max": 10.0
         },
         "pass_temp_disc_height": {
-            "value": 2.2138,
+            "value": 3.3162,
             "description": "Maximum EPA reduction for cold temperature on passing units",
             "opti_min": 0.0,
             "opti_max": 7.0
         },
         "rush_wind_disc_height": {
-            "value": 0.2022,
+            "value": 0.6741,
             "description": "Maximum EPA reduction for wind on rushing units",
             "opti_min": 0.0,
             "opti_max": 2.0
@@ -187,7 +187,7 @@
             "opti_max": 7.0
         },
         "st_wind_disc_height": {
-            "value": 0.9315,
+            "value": 0.9256,
             "description": "Maximum EPA reduction for wind on special teams units",
             "opti_min": 0.0,
             "opti_max": 10.0
@@ -199,51 +199,69 @@
             "opti_max": 7.0
         },
         "pass_off_qb_reversion": {
-            "value": 0.5506,
+            "value": 0.515,
             "description": "Offseason reversion of pass offense toward Week 1 starter QB value",
             "opti_min": 0.0,
             "opti_max": 1.0
         },
         "league_qb_sf": {
-            "value": 0.0301,
+            "value": 0.0307,
             "description": "Smoothing factor for league-wide QB value average",
             "opti_min": 0.0,
             "opti_max": 0.05
+        },
+        "pass_int_disc": {
+            "value": 0.1198,
+            "description": "Discount rate for INT EPA in pass unit updates",
+            "opti_min": 0.0,
+            "opti_max": 1.0
+        },
+        "pass_qb_fumble_disc": {
+            "value": 0.2282,
+            "description": "Discount rate for QB fumble EPA in pass unit updates",
+            "opti_min": 0.0,
+            "opti_max": 1.0
+        },
+        "nonqb_fumble_disc": {
+            "value": 0.5557,
+            "description": "Discount rate for non-QB fumble EPA (receiver fumbles in pass, all fumbles in rush)",
+            "opti_min": 0.0,
+            "opti_max": 1.0
         }
     },
     "elo_config": {
         "pass_off_coef": {
-            "value": 22.0625,
+            "value": 21.9579,
             "description": "Elo coefficient for pass offense unit value",
             "opti_min": 0.0,
             "opti_max": 50.0
         },
         "rush_off_coef": {
-            "value": 39.232,
+            "value": 37.5957,
             "description": "Elo coefficient for rush offense unit value",
             "opti_min": 0.0,
             "opti_max": 50.0
         },
         "st_off_coef": {
-            "value": 39.1936,
+            "value": 40.6194,
             "description": "Elo coefficient for special teams offense unit value",
             "opti_min": 0.0,
             "opti_max": 50.0
         },
         "pass_def_coef": {
-            "value": 19.1364,
+            "value": 20.1443,
             "description": "Elo coefficient for pass defense unit value",
             "opti_min": 0.0,
             "opti_max": 50.0
         },
         "rush_def_coef": {
-            "value": 42.7556,
+            "value": 47.1681,
             "description": "Elo coefficient for rush defense unit value",
             "opti_min": 0.0,
             "opti_max": 50.0
         },
         "st_def_coef": {
-            "value": 44.6289,
+            "value": 50.0,
             "description": "Elo coefficient for special teams defense unit value",
             "opti_min": 0.0,
             "opti_max": 50.0

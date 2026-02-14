@@ -44,6 +44,9 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
             'unit_config.pass_temp_disc_height',
             'unit_config.pass_off_qb_reversion',
             'unit_config.league_qb_sf',
+            'unit_config.pass_int_disc',
+            'unit_config.pass_qb_fumble_disc',
+            'unit_config.nonqb_fumble_disc',
         ],
         'rush': [
             'unit_config.rush_location_effect_share',
@@ -56,7 +59,8 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
             'unit_config.league_rush_sf',
             'unit_config.league_rush_reversion',
             'unit_config.rush_wind_disc_height',
-            'unit_config.rush_temp_disc_height'
+            'unit_config.rush_temp_disc_height',
+            'unit_config.nonqb_fumble_disc'
         ],
         'st': [
             'unit_config.st_location_effect_share',
