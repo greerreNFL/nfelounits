@@ -12,9 +12,9 @@ from typing import Dict, List, Any, Optional
 
 from .UnitModelState import UnitModelState
 from ..Entities import (
-    UnitType, Side, Unit,
+    UnitType, Side, Pace, Unit,
     Team, TeamQb,
-    LeagueBaseline, LeagueQb,
+    LeagueBaseline, LeagueQb, LeaguePace,
     TeamGameRecord
 )
 
@@ -37,11 +37,13 @@ class UnitModelStateManager:
     
     # Type registry for deserialization
     TYPE_REGISTRY = {
+        'Pace': Pace,
         'Unit': Unit,
         'Team': Team,
         'TeamQb': TeamQb,
         'LeagueBaseline': LeagueBaseline,
         'LeagueQb': LeagueQb,
+        'LeaguePace': LeaguePace,
         'UnitModelState': UnitModelState,
     }
     
@@ -132,10 +134,12 @@ class UnitModelStateManager:
                     # Handle special enum fields
                     if type_name == 'Unit' and key == 'unit_type':
                         kwargs[key] = self.ENUM_REGISTRY['UnitType'][val]
+                    elif type_name == 'Unit' and key == 'side':
+                        kwargs[key] = self.ENUM_REGISTRY['Side'][val]
                     else:
                         kwargs[key] = self._deserialize(val, config)
                 # Inject params for entities that need config
-                if type_name in ('Unit', 'TeamQb', 'LeagueBaseline', 'LeagueQb'):
+                if type_name in ('Unit', 'TeamQb', 'LeagueBaseline', 'LeagueQb', 'LeaguePace'):
                     kwargs['params'] = config
                 return cls(**kwargs)
             else:
@@ -157,6 +161,7 @@ class UnitModelStateManager:
         teams: Dict[str, Team],
         league_baseline: LeagueBaseline,
         league_qb: LeagueQb,
+        league_pace: LeaguePace,
         team_game_records: List[TeamGameRecord],
         filepath: Optional[str] = None
     ) -> str:
@@ -190,6 +195,7 @@ class UnitModelStateManager:
             teams=teams,
             league_baseline=league_baseline,
             league_qb=league_qb,
+            league_pace=league_pace,
             team_game_records=team_game_records,
         )
         # Serialize and write

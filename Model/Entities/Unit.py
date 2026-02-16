@@ -5,8 +5,9 @@ Represents a team unit (offensive or defensive) with EWMA-style updates.
 '''
 
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from .Types import UnitType, Side
+from .Pace import Pace
 
 
 @dataclass
@@ -23,12 +24,94 @@ class Unit:
     coach: Optional[str] = None
     params: Dict[str, Any] = None
     pending_update: bool = False
+    pace: Optional[Pace] = None
     
     def __post_init__(self):
         '''Initialize params if not provided'''
         if self.params is None:
             self.params = {}
-    
+
+    ## ==================== Private Helpers ==================== ##
+
+    def _param(self, suffix: str) -> str:
+        '''
+        Build a config param key for this unit, e.g. "pass_off_sf"
+        Params for all units and context is contained in the config that is passed.
+        Therefore, the unit specific params are dynamically looked up using these param
+        constructors to avoid repeating the same construction throughout the code
+        '''
+        return f'{self.unit_type.value}_{self.side.value}_{suffix}'
+
+    def _qb_adjs(self,
+        home_qb_adj: float,
+        away_qb_adj: float,
+        is_home: bool
+    ) -> Tuple[float, float]:
+        '''
+        Return (qb_adj, opp_qb_adj) in EPA scale.
+        Both are 0 for non-pass units.
+        '''
+        if self.unit_type == UnitType.PASS:
+            qb_adj = home_qb_adj / 25 if is_home else away_qb_adj / 25
+            opp_qb_adj = away_qb_adj / 25 if is_home else home_qb_adj / 25
+            return qb_adj, opp_qb_adj
+        return 0.0, 0.0
+
+    def _observed_performance(self,
+        observed_epa: float,
+        opponent_value: float,
+        qb_adj: float,
+        opp_qb_adj: float,
+        location_effect_adj: float,
+        weather_adj: float,
+        league_avg: float,
+    ) -> float:
+        '''
+        Calculate opponent-adjusted observed performance.
+
+        Offense: how much better/worse than expected given context
+        Defense: how much less/more EPA allowed than expected
+        '''
+        if self.side == Side.OFFENSE:
+            return (
+                observed_epa - (qb_adj + location_effect_adj + weather_adj) +
+                opponent_value -
+                league_avg
+            )
+        return (
+            opponent_value + league_avg + (opp_qb_adj - location_effect_adj + weather_adj) -
+            observed_epa
+        )
+
+    def _expected_epa_raw(self,
+        unit_forecast: float,
+        opponent_value: float,
+        qb_adj: float,
+        opp_qb_adj: float,
+        location_effect_adj: float,
+        weather_adj: float,
+        league_avg: float,
+    ) -> float:
+        '''
+        Calculate expected EPA from unit forecast and game context.
+
+        Offense: unit value + context advantages - opponent + league avg
+        Defense: opponent value + context + league avg
+        '''
+        if self.side == Side.OFFENSE:
+            return (
+                unit_forecast +
+                (qb_adj + location_effect_adj + weather_adj) -
+                opponent_value +
+                league_avg
+            )
+        return (
+            opponent_value + (opp_qb_adj - location_effect_adj + weather_adj) +
+            league_avg
+        )
+
+    ## ==================== Public Methods ==================== ##
+
     def update(self,
         ## base values ##
         observed_epa: float, opponent_value: float,
@@ -40,6 +123,7 @@ class Unit:
         ## determine usage ##
         is_home: bool,
         league_avg: float,
+        plays: Optional[int] = None,
     ) -> None:
         '''
         Update unit rating using exponentially weighted moving average
@@ -55,68 +139,69 @@ class Unit:
         * coach: name of the coach for the team
         * is_home: Whether this unit's team is home
         * league_avg: League-wide average EPA for this unit type
-
-        The opponent adjustment:
-        - For offense: subtract opponent's defensive value (easier vs bad defense)
-        - For defense: flip sign (allowing less EPA = better defense)
-        - Subtract league average to center ratings around 0
+        * plays: Number of plays for pace tracking (optional)
         '''
-        ## get smoothing factor ##
-        sf_param = f'{self.unit_type.value}_{self.side}_sf'
-        sf = self.params['unit_config'][sf_param]
-        ## get trend smoothing factor (gamma) ##
-        trend_sf_param = f'{self.unit_type.value}_{self.side}_trend_sf'
-        trend_sf = self.params['unit_config'].get(trend_sf_param, 0.0)
-        ## if pass related unit, include the QB adjustment for self and opponent
-        if self.unit_type == UnitType.PASS:
-            qb_adj = home_qb_adj / 25 if is_home else away_qb_adj / 25
-            opp_qb_adj = away_qb_adj / 25 if is_home else home_qb_adj / 25
-        else:
-            qb_adj = 0
-            opp_qb_adj = 0
-        ## calculate opponent-adjusted value ##
-        if self.side == 'off':
-            observed_performance = (
-                observed_epa - (qb_adj + location_effect_adj + weather_adj) + ## observed value adjusted for QB, location effect, and weather
-                opponent_value - ## adjust for opponent difficulty (good defense = positive, makes this harder)
-                league_avg ## subtract league average to center around 0
-            )
-        else:  ## def ##
-            observed_performance = (
-                opponent_value + league_avg + (opp_qb_adj - location_effect_adj + weather_adj) - ## expected absolute EPA = opponent relative value + league avg + adjs
-                observed_epa ## subtract observed absolute EPA to get defensive performance relative to league average
-            )
+        ## get smoothing factors ##
+        sf = self.params['unit_config'][self._param('sf')]
+        trend_sf = self.params['unit_config'][self._param('trend_sf')]
+        ## calculate adjustments and observed performance ##
+        qb_adj, opp_qb_adj = self._qb_adjs(home_qb_adj, away_qb_adj, is_home)
+        observed_performance = self._observed_performance(
+            observed_epa, opponent_value,
+            qb_adj, opp_qb_adj,
+            location_effect_adj, weather_adj, league_avg,
+        )
+        ## apply pace-based sf discount ##
+        ut = self.unit_type.value
+        pace_sf = self.params['unit_config'][f'{ut}_pace_sf']
+        pace_threshold = self.params['unit_config'][f'{ut}_pace_disc_threshold']
+        if plays is not None and pace_threshold > 0:
+            ## if we have a pace initialized, apply the discount ##
+            if self.pace is not None:
+                pace_discount = self.pace.get_sf_discount(plays, pace_threshold)
+                sf = sf * pace_discount
+                if trend_sf > 0:
+                    trend_sf = trend_sf * pace_discount
+            ## post discount logic, handle pace update ##
+            ## if no pace (ie the above was skipped), initialize) ##
+            ## else, update normally
+            if self.pace is None:
+                self.pace = Pace(mean=float(plays), var=0.0)
+            else:
+                self.pace.update(plays, pace_sf)
         ## update value using Holt-style exponential smoothing ##
         prev_value = self.value
-        # Level update: weight observed vs (previous level + trend)
         self.value = sf * observed_performance + (1 - sf) * (self.value + self.trend)
-        # Trend update: weight new trend vs previous trend (only if trend_sf > 0)
+        ## update trend ##
         if trend_sf > 0:
             self.trend = trend_sf * (self.value - prev_value) + (1 - trend_sf) * self.trend
+        ## update state ##
         self.last_game_season = season
         self.coach = coach
-        ## clear pending update flag ##
         self.pending_update = False
     
     def regress(self,
         coach: str,
         team_qb_starter_value: float = 0.0,
         league_qb_avg: float = 75.0,
+        league_pace_mean: float = None,
+        league_pace_var: float = None,
     ) -> None:
         '''
         Offseason regression with optional QB-adjusted target for pass offense
-        
+
         Parameters:
         * coach: Coach name
         * team_qb_starter_value: Week 1 starter's value (in Elo), used for pass offense
         * league_qb_avg: League average QB value (in Elo), used for pass offense
+        * league_pace_mean: League average pace for this unit type (regression target)
+        * league_pace_var: League average pace variance for this unit type (regression target)
         '''
         ## get reversion rate ##
-        reversion_param = f'{self.unit_type.value}_{self.side}_reversion'
-        reversion_rate = self.params['unit_config'][reversion_param]
+        reversion_rate = self.params['unit_config'][self._param('reversion')]
         ## for pass offense, also regress toward QB value ##
-        if self.unit_type == UnitType.PASS and self.side == 'off':
-            qb_reversion_rate = self.params['unit_config'].get('pass_off_qb_reversion', 0.0)
+        if self.unit_type == UnitType.PASS and self.side == Side.OFFENSE:
+            qb_reversion_rate = self.params['unit_config']['pass_off_qb_reversion']
             qb_target = (team_qb_starter_value - league_qb_avg) / 25  # convert to EPA scale
             ## normalize weights if they sum > 1 ##
             current_weight = max(0, 1 - reversion_rate - qb_reversion_rate)
@@ -134,6 +219,10 @@ class Unit:
             self.value = (1 - reversion_rate) * self.value
         ## reset trend at offseason (no momentum carries over) ##
         self.trend = 0.0
+        ## regress pace toward league average ##
+        pace_reversion = self.params['unit_config'][f'{self.unit_type.value}_pace_reversion']
+        if self.pace is not None and league_pace_mean is not None:
+            self.pace.regress(league_pace_mean, league_pace_var or 0.0, pace_reversion)
         ## update state ##
         self.last_game_season = None
         self.coach = coach
@@ -143,19 +232,23 @@ class Unit:
         coach: str,
         team_qb_starter_value: float = 0.0,
         league_qb_avg: float = 75.0,
+        league_pace_mean: float = None,
+        league_pace_var: float = None,
     ) -> float:
         '''
-        Gets the value of the unit while handling regression if needed 
-        
+        Gets the value of the unit while handling regression if needed
+
         Parameters:
         * current_season: Current season year
         * coach: Coach name
         * team_qb_starter_value: Week 1 starter's value (in Elo), used for pass offense regression
         * league_qb_avg: League average QB value (in Elo), used for pass offense regression
-        
+        * league_pace_mean: League average pace for this unit type (for pace regression)
+        * league_pace_var: League average pace variance for this unit type (for pace regression)
+
         Returns:
         * Value of the unit
-        
+
         Raises:
         * RuntimeError: If get_value() is called when a previous game was not updated
           (indicates attempting to process multiple unplayed weeks)
@@ -163,13 +256,16 @@ class Unit:
         ## check if previous game was not updated (unplayed game protection) ##
         if self.pending_update:
             raise RuntimeError(
-                f'Unit {self.team} {self.unit_type.value}_{self.side} has a pending update. '
+                f'Unit {self.team} {self.unit_type.value}_{self.side.value} has a pending update. '
                 f'Cannot get value again before update() is called. '
                 f'This typically means multiple unplayed weeks were passed to the model.'
             )
         ## check if offseason regression is needed ##
         if self.last_game_season is not None and self.last_game_season < current_season:
-            self.regress(coach, team_qb_starter_value, league_qb_avg)
+            self.regress(coach, team_qb_starter_value, league_qb_avg, league_pace_mean, league_pace_var)
+        ## initialize pace from league if no history ##
+        if self.pace is None and league_pace_mean is not None:
+            self.pace = Pace.from_league(league_pace_mean, league_pace_var)
         ## set pending update flag ##
         self.pending_update = True
         ## return value + trend ##
@@ -187,9 +283,6 @@ class Unit:
         '''
         Calculate expected EPA for this unit given game conditions
 
-        Mirrors the adjustment logic from update() but returns expected EPA
-        instead of updating the unit value
-
         Parameters:
         * opponent_value: Opponent unit's pre-game value
         * location_effect_adj: Location effect adjustment (already calculated for this unit)
@@ -202,35 +295,21 @@ class Unit:
         Returns:
         * Expected EPA for this unit
         '''
-        ## if pass related unit, include the QB adjustment for self and opponent ##
-        if self.unit_type == UnitType.PASS:
-            qb_adj = home_qb_adj / 25 if is_home else away_qb_adj / 25
-            opp_qb_adj = away_qb_adj / 25 if is_home else home_qb_adj / 25
-        else:
-            qb_adj = 0
-            opp_qb_adj = 0
-        ## calculate expected EPA (use value + trend) ##
-        unit_forecast = self.value + self.trend
-        if self.side == 'off':
-            expected = (
-                unit_forecast + ## team's unit value + trend (relative to league avg)
-                (qb_adj + location_effect_adj + weather_adj) - ## add team advantages and weather adjustment
-                opponent_value + ## subtract opponent defense (good defense = positive, so subtract)
-                league_avg ## add back league average since unit value is relative
-            )
-        else:  ## def ##
-            expected = (
-                opponent_value + (opp_qb_adj - location_effect_adj + weather_adj) + ## opponent's expected EPA given their advantages and weather
-                league_avg ## add back league average since opponent unit value is relative
-            )
-        return expected
+        qb_adj, opp_qb_adj = self._qb_adjs(home_qb_adj, away_qb_adj, is_home)
+        return self._expected_epa_raw(
+            self.value + self.trend, opponent_value,
+            qb_adj, opp_qb_adj,
+            location_effect_adj, weather_adj, league_avg,
+        )
 
     def as_record(self) -> Dict[str, Any]:
         '''Return unit state as dictionary for storage'''
         return {
             'unit_type': self.unit_type.value,
             'team': self.team,
-            'side': self.side,
+            'side': self.side.value,
             'value': round(self.value, 3),
             'trend': round(self.trend, 3),
+            'pace_mean': round(self.pace.mean, 1) if self.pace is not None else None,
+            'pace_var': round(self.pace.var, 1) if self.pace is not None else None,
         }

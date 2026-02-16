@@ -47,6 +47,9 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
             'unit_config.pass_int_disc',
             'unit_config.pass_qb_fumble_disc',
             'unit_config.nonqb_fumble_disc',
+            'unit_config.pass_pace_sf',
+            'unit_config.pass_pace_disc_threshold',
+            'unit_config.pass_pace_reversion',
         ],
         'rush': [
             'unit_config.rush_location_effect_share',
@@ -60,7 +63,10 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
             'unit_config.league_rush_reversion',
             'unit_config.rush_wind_disc_height',
             'unit_config.rush_temp_disc_height',
-            'unit_config.nonqb_fumble_disc'
+            'unit_config.nonqb_fumble_disc',
+            'unit_config.rush_pace_sf',
+            'unit_config.rush_pace_disc_threshold',
+            'unit_config.rush_pace_reversion',
         ],
         'st': [
             'unit_config.st_location_effect_share',
@@ -73,7 +79,10 @@ def optimize_unit_params_by_unit(labeled_data: pd.DataFrame, config: ModelConfig
             'unit_config.league_st_sf',
             'unit_config.league_st_reversion',
             'unit_config.st_wind_disc_height',
-            'unit_config.st_temp_disc_height'
+            'unit_config.st_temp_disc_height',
+            'unit_config.st_pace_sf',
+            'unit_config.st_pace_disc_threshold',
+            'unit_config.st_pace_reversion',
         ]
     }
     all_unit_params = {}
@@ -222,7 +231,7 @@ def optimize_elo_params(labeled_data: pd.DataFrame, config: ModelConfig, n_round
     return elo_result
 
 
-def optimize_models(n_rounds: int = 10, n_test_seasons: int = 5):
+def optimize_models(n_rounds: int = 8, n_test_seasons: int = 5):
     '''
     Main optimization workflow - optimizes all model parameters
     

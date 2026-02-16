@@ -30,7 +30,7 @@ qb_meta = loader.qb_meta  # QB metadata
 2. **Build games** - Filter to regular season, include played games + next unplayed week
 3. **Parse PBP** - Categorize plays into units (pass, rush, special teams)
 4. **Aggregate** - Sum EPA by game and unit
-5. **Add adjustments** - Join HFA and QB data
+5. **Add adjustments** - Join location effect (HFA) and QB data
 
 ### Unit Definitions
 
@@ -52,9 +52,16 @@ The `unit_games` DataFrame contains:
 | `home_pass_epa`, `away_pass_epa` | Pass unit EPA totals |
 | `home_rush_epa`, `away_rush_epa` | Rush unit EPA totals |
 | `home_st_epa`, `away_st_epa` | Special teams EPA totals |
+| `home_pass_int_epa`, `away_pass_int_epa` | EPA from interceptions (for volatile play discounting) |
+| `home_pass_qb_fumble_epa`, `away_pass_qb_fumble_epa` | EPA from QB fumbles (sack, scramble, designed run) |
+| `home_pass_nonqb_fumble_epa`, `away_pass_nonqb_fumble_epa` | EPA from non-QB fumbles on pass plays |
+| `home_rush_nonqb_fumble_epa`, `away_rush_nonqb_fumble_epa` | EPA from fumbles on rush plays |
+| `home_pass_plays`, `away_pass_plays` | Pass play counts (for pace tracking) |
+| `home_rush_plays`, `away_rush_plays` | Rush play counts (for pace tracking) |
+| `home_st_plays`, `away_st_plays` | Special teams play counts (for pace tracking) |
 | `temp`, `wind` | Weather conditions |
 | `home_coach`, `away_coach` | Head coaches |
-| `hfa_base` | Home field advantage factor |
+| `hfa_base` | Location effect base factor |
 | `home_qb_value`, `away_qb_value` | Pre-game QB values |
 | `result` | Point differential (home perspective), NaN for unplayed |
 

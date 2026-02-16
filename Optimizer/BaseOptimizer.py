@@ -182,7 +182,8 @@ class BaseOptimizer(ABC):
             method=self.method,
             options={
                 'ftol': self.tol,
-                'eps': self.step
+                'eps': self.step,
+                'maxiter': 800
             }
         )
         ## end timer ##

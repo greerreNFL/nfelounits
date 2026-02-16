@@ -37,23 +37,24 @@ class EloTranslator:
         '''
         Convert team unit values to an elo rating
         
-        Formula: 1505 + sum(unit.value * coefficient)
-        
-        Only accesses current unit values - regression is handled by UnitModel
-        
+        Formula: 1505 + sum((unit.value + unit.trend) * coefficient)
+
+        Uses value + trend to include momentum in the elo forecast,
+        consistent with how get_expected_epa() forecasts unit performance.
+
         Parameters:
         * team: Team object with all 6 units
-        
+
         Returns:
         * Elo rating for the team
         '''
         elo = 1505.0
-        elo += team.pass_off.value * self.pass_off_coef
-        elo += team.rush_off.value * self.rush_off_coef
-        elo += team.st_off.value * self.st_off_coef
-        elo += team.pass_def.value * self.pass_def_coef
-        elo += team.rush_def.value * self.rush_def_coef
-        elo += team.st_def.value * self.st_def_coef
+        elo += (team.pass_off.value + team.pass_off.trend) * self.pass_off_coef
+        elo += (team.rush_off.value + team.rush_off.trend) * self.rush_off_coef
+        elo += (team.st_off.value + team.st_off.trend) * self.st_off_coef
+        elo += (team.pass_def.value + team.pass_def.trend) * self.pass_def_coef
+        elo += (team.rush_def.value + team.rush_def.trend) * self.rush_def_coef
+        elo += (team.st_def.value + team.st_def.trend) * self.st_def_coef
         return elo
     
     def calculate_context_adj(self, team: Team, game_context: GameContext) -> float:
@@ -84,12 +85,12 @@ class EloTranslator:
         ## calculate adjusted elo with weather impacts ##
         ## weather_adj is negative (reduces EPA) for the offense ##
         adjusted_elo = 1505.0
-        adjusted_elo += (team.pass_off.value + pass_weather_adj) * self.pass_off_coef
-        adjusted_elo += (team.rush_off.value + rush_weather_adj) * self.rush_off_coef
-        adjusted_elo += (team.st_off.value + st_weather_adj) * self.st_off_coef
-        adjusted_elo += (team.pass_def.value) * self.pass_def_coef
-        adjusted_elo += (team.rush_def.value) * self.rush_def_coef
-        adjusted_elo += (team.st_def.value) * self.st_def_coef
+        adjusted_elo += (team.pass_off.value + team.pass_off.trend + pass_weather_adj) * self.pass_off_coef
+        adjusted_elo += (team.rush_off.value + team.rush_off.trend + rush_weather_adj) * self.rush_off_coef
+        adjusted_elo += (team.st_off.value + team.st_off.trend + st_weather_adj) * self.st_off_coef
+        adjusted_elo += (team.pass_def.value + team.pass_def.trend) * self.pass_def_coef
+        adjusted_elo += (team.rush_def.value + team.rush_def.trend) * self.rush_def_coef
+        adjusted_elo += (team.st_def.value + team.st_def.trend) * self.st_def_coef
         
         ## return the delta ##
         return adjusted_elo - base_elo

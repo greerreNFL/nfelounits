@@ -4,7 +4,7 @@ Configuration management and parameter optimization for the Unit Model.
 
 ## Why Optimization?
 
-The model has ~30 parameters controlling smoothing rates, regression amounts, weather effects, and Elo translation. These could be set by intuition, but optimization:
+The model has ~48 unit parameters and 6 Elo coefficients controlling smoothing rates, trend factors, regression amounts, weather effects, location effect shares, volatile play discounts, pace tracking, and Elo translation. These could be set by intuition, but optimization:
 
 1. **Finds non-obvious values** - e.g., pass defense regresses more than pass offense
 2. **Balances tradeoffs** - Faster updates capture changes but amplify noise
@@ -61,9 +61,14 @@ config.to_file()
 | Category | Parameters | Description |
 |----------|------------|-------------|
 | **Smoothing Factors** | `*_sf` | EWMA update rate (0 = no update, 1 = full replacement) |
+| **Trend Factors** | `*_trend_sf` | Holt trend smoothing rate (0 = no trend tracking) |
 | **Reversion Rates** | `*_reversion` | Offseason regression toward mean (0 = no reversion, 1 = full) |
 | **Weather Adjustments** | `*_wind_disc_height`, `*_temp_disc_height` | Max EPA reduction for weather |
-| **HFA Shares** | `*_hfa_share` | Portion of HFA attributed to each unit |
+| **Location Effect Shares** | `*_location_effect_share` | How location affects total EPA per unit (negative = discount) |
+| **Volatile Play Discounts** | `pass_int_disc`, `pass_qb_fumble_disc`, `nonqb_fumble_disc` | Fraction of turnover EPA discounted from updates |
+| **Pace Tracking** | `*_pace_sf`, `*_pace_disc_threshold`, `*_pace_reversion` | Play count EWMA, SF discount threshold, offseason reversion |
+| **League Smoothing** | `league_*_sf`, `league_*_reversion` | League-wide EPA baseline tracking |
+| **QB Reversion** | `pass_off_qb_reversion` | Pass offense regression toward Week 1 QB value |
 | **Elo Coefficients** | `*_coef` | Unit EPA → Elo conversion factor |
 
 ### Why Bounds?

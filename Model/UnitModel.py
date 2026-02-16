@@ -11,7 +11,7 @@ import time
 from .Entities import (
     UnitType, Side, Unit,
     Team, TeamQb,
-    LeagueBaseline, LeagueQb,
+    LeagueBaseline, LeagueQb, LeaguePace,
     TeamGameRecord
 )
 from .Mechanics import GameContext, EloTranslator
@@ -37,6 +37,7 @@ class UnitModel:
         self.team_game_records: List[TeamGameRecord] = []
         self.league_baseline: LeagueBaseline = LeagueBaseline(params=config)
         self.league_qb: LeagueQb = LeagueQb(params=config)
+        self.league_pace: LeaguePace = LeaguePace(params=config)
         ## elo translator ##
         self.elo_translator: EloTranslator = EloTranslator(config.get('elo_config', {}))
         ## state manager ##
@@ -56,12 +57,12 @@ class UnitModel:
         if team_abbr not in self.teams:
             self.teams[team_abbr] = Team(
                 team_abbr=team_abbr,
-                pass_off=Unit(unit_type=UnitType.PASS, team=team_abbr, side='off', params=self.config),
-                rush_off=Unit(unit_type=UnitType.RUSH, team=team_abbr, side='off', params=self.config),
-                st_off=Unit(unit_type=UnitType.SPECIAL_TEAMS, team=team_abbr, side='off', params=self.config),
-                pass_def=Unit(unit_type=UnitType.PASS, team=team_abbr, side='def', params=self.config),
-                rush_def=Unit(unit_type=UnitType.RUSH, team=team_abbr, side='def', params=self.config),
-                st_def=Unit(unit_type=UnitType.SPECIAL_TEAMS, team=team_abbr, side='def', params=self.config),
+                pass_off=Unit(unit_type=UnitType.PASS, team=team_abbr, side=Side.OFFENSE, params=self.config),
+                rush_off=Unit(unit_type=UnitType.RUSH, team=team_abbr, side=Side.OFFENSE, params=self.config),
+                st_off=Unit(unit_type=UnitType.SPECIAL_TEAMS, team=team_abbr, side=Side.OFFENSE, params=self.config),
+                pass_def=Unit(unit_type=UnitType.PASS, team=team_abbr, side=Side.DEFENSE, params=self.config),
+                rush_def=Unit(unit_type=UnitType.RUSH, team=team_abbr, side=Side.DEFENSE, params=self.config),
+                st_def=Unit(unit_type=UnitType.SPECIAL_TEAMS, team=team_abbr, side=Side.DEFENSE, params=self.config),
                 qb=TeamQb(team=team_abbr, params=self.config)
             )
         return self.teams[team_abbr]
@@ -110,6 +111,10 @@ class UnitModel:
             temp=row.get('temp'),
             wind=row.get('wind')
         )
+        ## get league pace for initialization and regression ##
+        pass_pace_mean, pass_pace_var = self.league_pace.get_pace('pass', row['season'])
+        rush_pace_mean, rush_pace_var = self.league_pace.get_pace('rush', row['season'])
+        st_pace_mean, st_pace_var = self.league_pace.get_pace('st', row['season'])
         ## create records and access values ##
         ## HOME ##
         home_game_record = {
@@ -124,12 +129,12 @@ class UnitModel:
             'qb_adj': home_qb_adj,  # calculated adjustment
             'coach': row['home_coach'],
             ## get values and handle regression ##
-            'pass_off_value_pre': home_team.pass_off.get_value(row['season'], row['home_coach'], home_team.qb.starter_value, league_qb_avg),
-            'rush_off_value_pre': home_team.rush_off.get_value(row['season'], row['home_coach']),
-            'st_off_value_pre': home_team.st_off.get_value(row['season'], row['home_coach']),
-            'pass_def_value_pre': home_team.pass_def.get_value(row['season'], row['home_coach']),
-            'rush_def_value_pre': home_team.rush_def.get_value(row['season'], row['home_coach']),
-            'st_def_value_pre': home_team.st_def.get_value(row['season'], row['home_coach']),
+            'pass_off_value_pre': home_team.pass_off.get_value(row['season'], row['home_coach'], home_team.qb.starter_value, league_qb_avg, pass_pace_mean, pass_pace_var),
+            'rush_off_value_pre': home_team.rush_off.get_value(row['season'], row['home_coach'], league_pace_mean=rush_pace_mean, league_pace_var=rush_pace_var),
+            'st_off_value_pre': home_team.st_off.get_value(row['season'], row['home_coach'], league_pace_mean=st_pace_mean, league_pace_var=st_pace_var),
+            'pass_def_value_pre': home_team.pass_def.get_value(row['season'], row['home_coach'], league_pace_mean=pass_pace_mean, league_pace_var=pass_pace_var),
+            'rush_def_value_pre': home_team.rush_def.get_value(row['season'], row['home_coach'], league_pace_mean=rush_pace_mean, league_pace_var=rush_pace_var),
+            'st_def_value_pre': home_team.st_def.get_value(row['season'], row['home_coach'], league_pace_mean=st_pace_mean, league_pace_var=st_pace_var),
         }
         ## AWAY ##
         away_game_record = {
@@ -144,12 +149,12 @@ class UnitModel:
             'qb_adj': away_qb_adj,  # calculated adjustment
             'coach': row['away_coach'],
             ## get values and handle regression ##
-            'pass_off_value_pre': away_team.pass_off.get_value(row['season'], row['away_coach'], away_team.qb.starter_value, league_qb_avg),
-            'rush_off_value_pre': away_team.rush_off.get_value(row['season'], row['away_coach']),
-            'st_off_value_pre': away_team.st_off.get_value(row['season'], row['away_coach']),
-            'pass_def_value_pre': away_team.pass_def.get_value(row['season'], row['away_coach']),
-            'rush_def_value_pre': away_team.rush_def.get_value(row['season'], row['away_coach']),
-            'st_def_value_pre': away_team.st_def.get_value(row['season'], row['away_coach']),
+            'pass_off_value_pre': away_team.pass_off.get_value(row['season'], row['away_coach'], away_team.qb.starter_value, league_qb_avg, pass_pace_mean, pass_pace_var),
+            'rush_off_value_pre': away_team.rush_off.get_value(row['season'], row['away_coach'], league_pace_mean=rush_pace_mean, league_pace_var=rush_pace_var),
+            'st_off_value_pre': away_team.st_off.get_value(row['season'], row['away_coach'], league_pace_mean=st_pace_mean, league_pace_var=st_pace_var),
+            'pass_def_value_pre': away_team.pass_def.get_value(row['season'], row['away_coach'], league_pace_mean=pass_pace_mean, league_pace_var=pass_pace_var),
+            'rush_def_value_pre': away_team.rush_def.get_value(row['season'], row['away_coach'], league_pace_mean=rush_pace_mean, league_pace_var=rush_pace_var),
+            'st_def_value_pre': away_team.st_def.get_value(row['season'], row['away_coach'], league_pace_mean=st_pace_mean, league_pace_var=st_pace_var),
         }
         ## Calculate elos ##
         home_elo = self.elo_translator.translate_to_elo(home_team)
@@ -294,6 +299,11 @@ class UnitModel:
                 away_game_record[f'{unit_type}_off_faced'] = home_def_unit.value - (away_location_effect_adj + weather_adj)
                 home_game_record[f'{unit_type}_def_faced'] = away_off_unit.value + (away_qb_adj_epa + away_location_effect_adj + weather_adj)
                 away_game_record[f'{unit_type}_def_faced'] = home_off_unit.value + (home_qb_adj_epa + home_location_effect_adj + weather_adj)
+                ## get play counts for pace tracking ##
+                home_plays = row.get(f'home_{unit_type}_plays', None)
+                away_plays = row.get(f'away_{unit_type}_plays', None)
+                home_plays = int(home_plays) if pd.notna(home_plays) else None
+                away_plays = int(away_plays) if pd.notna(away_plays) else None
                 ## update units (using turnover-discounted EPA) ##
                 home_off_unit.update(
                     observed_epa=home_epa_for_update,
@@ -305,7 +315,8 @@ class UnitModel:
                     season=row['season'],
                     coach=row['home_coach'],
                     is_home=True,
-                    league_avg=league_avg
+                    league_avg=league_avg,
+                    plays=home_plays
                 )
                 home_def_unit.update(
                     observed_epa=away_epa_for_update,
@@ -317,7 +328,8 @@ class UnitModel:
                     season=row['season'],
                     coach=row['home_coach'],
                     is_home=True,
-                    league_avg=league_avg
+                    league_avg=league_avg,
+                    plays=away_plays
                 )
                 away_off_unit.update(
                     observed_epa=away_epa_for_update,
@@ -329,7 +341,8 @@ class UnitModel:
                     season=row['season'],
                     coach=row['away_coach'],
                     is_home=False,
-                    league_avg=league_avg
+                    league_avg=league_avg,
+                    plays=away_plays
                 )
                 away_def_unit.update(
                     observed_epa=home_epa_for_update,
@@ -341,11 +354,17 @@ class UnitModel:
                     season=row['season'],
                     coach=row['away_coach'],
                     is_home=False,
-                    league_avg=league_avg
+                    league_avg=league_avg,
+                    plays=home_plays
                 )
                 ## update league baseline ##
                 self.league_baseline.update(unit_type, row[f'home_{unit_type}_epa'], row['season'])
                 self.league_baseline.update(unit_type, row[f'away_{unit_type}_epa'], row['season'])
+                ## update league pace ##
+                if home_plays is not None:
+                    self.league_pace.update(unit_type, home_plays, row['season'])
+                if away_plays is not None:
+                    self.league_pace.update(unit_type, away_plays, row['season'])
             else:
                 ## unplayed: set observed, value_created, league_avg, and faced to NaN ##
                 home_game_record[f'{unit_type}_off_observed'] = None
@@ -422,6 +441,7 @@ class UnitModel:
         self.team_game_records = []
         self.league_baseline = LeagueBaseline(params=self.config)
         self.league_qb = LeagueQb(params=self.config)
+        self.league_pace = LeaguePace(params=self.config)
         ## process each game ##
         for idx, row in self.games.iterrows():
             self.process_game(row)
@@ -448,6 +468,8 @@ class UnitModel:
         self.teams = state.teams
         self.league_baseline = state.league_baseline
         self.league_qb = state.league_qb
+        if state.league_pace is not None:
+            self.league_pace = state.league_pace
         self.team_game_records = state.team_game_records
         ## filter games to exclude already-processed game_ids ##
         processed_game_ids = set(r['game_id'] for r in self.team_game_records)
@@ -470,6 +492,7 @@ class UnitModel:
             teams=self.teams,
             league_baseline=self.league_baseline,
             league_qb=self.league_qb,
+            league_pace=self.league_pace,
             team_game_records=self.team_game_records,
             filepath=filepath
         )

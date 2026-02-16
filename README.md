@@ -14,9 +14,14 @@ A Python package for decomposing NFL team performance into measurable unit ratin
 
 The model uses EWMA (Exponentially Weighted Moving Average) to track unit performance over time, with:
 - **Opponent adjustment** - Performance measured relative to opponent quality
-- **Context adjustment** - Weather and home field advantage effects
+- **League baselines** - Tracks league-wide EPA drift to center updates around the current era
+- **Location effect** - Play-mix-aware location adjustments (not traditional HFA)
+- **Weather** - Wind and temperature sigmoid discounts on expected EPA
+- **QB adjustment** - Pass units account for quarterback quality
+- **Holt trend smoothing** - Momentum tracking for units with detectable trajectories
+- **Volatile play discounts** - Turnover EPA partially discounted as noise
+- **Pace tracking** - Abnormal play counts dampen the update signal
 - **Offseason regression** - Units regress toward league average between seasons
-- **QB adjustment** - Pass offense accounts for quarterback quality
 
 Unit ratings represent predicted EPA above/below average. Summing all units gives the team's estimated margin against an average opponent.
 
@@ -154,8 +159,8 @@ Schedule difficulty adjusted for context:
 
 Model parameters are stored in `config.json` with two sections:
 
-- **unit_config** - EWMA smoothing factors, reversion rates, weather adjustments
-- **elo_config** - Coefficients for translating unit EPA to Elo
+- **unit_config** - ~48 parameters: EWMA smoothing factors, trend factors, reversion rates, weather adjustments, location effect shares, volatile play discounts, pace tracking, and league-level smoothing
+- **elo_config** - 6 coefficients for translating unit EPA to Elo
 
 See [Optimizer/README.md](Optimizer/README.md) for parameter details and tuning.
 

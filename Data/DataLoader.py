@@ -54,7 +54,9 @@ class DataLoader:
                 'home_pass_int_epa', 'away_pass_int_epa',
                 'home_pass_qb_fumble_epa', 'away_pass_qb_fumble_epa',
                 'home_pass_nonqb_fumble_epa', 'away_pass_nonqb_fumble_epa',
-                'home_rush_nonqb_fumble_epa', 'away_rush_nonqb_fumble_epa'
+                'home_rush_nonqb_fumble_epa', 'away_rush_nonqb_fumble_epa',
+                'home_pass_plays', 'home_rush_plays', 'home_st_plays',
+                'away_pass_plays', 'away_rush_plays', 'away_st_plays'
             ]],
             on='game_id',
             how='left'
@@ -266,10 +268,34 @@ class DataLoader:
             'posteam', 'defteam', 'unit_bin'
         ]).agg(
             epa=('epa', 'sum'),
+            plays=('epa', 'count'),
             int_epa=('int_epa', 'sum'),
             qb_fumble_epa=('qb_fumble_epa', 'sum'),
             nonqb_fumble_epa=('nonqb_fumble_epa', 'sum')
         ).reset_index()
+        ## pivot to get play counts by unit for each team ##
+        home_plays = agg[agg['posteam'] == agg['home_team']].pivot_table(
+            index=['game_id'],
+            columns='unit_bin',
+            values='plays',
+            aggfunc='sum'
+        ).reset_index().rename(columns={
+            'pass': 'home_pass_plays',
+            'rush': 'home_rush_plays',
+            'st': 'home_st_plays'
+        })
+        away_plays = agg[agg['posteam'] == agg['away_team']].pivot_table(
+            index=['game_id'],
+            columns='unit_bin',
+            values='plays',
+            aggfunc='sum'
+        ).reset_index().rename(columns={
+            'pass': 'away_pass_plays',
+            'rush': 'away_rush_plays',
+            'st': 'away_st_plays'
+        })
+        home_plays.columns.name = None
+        away_plays.columns.name = None
         ## pivot to get EPA by unit for each home team ##
         home_units = agg[agg['posteam'] == agg['home_team']].pivot_table(
             index=['game_id', 'season', 'week', 'home_team'],
@@ -376,6 +402,17 @@ class DataLoader:
         )
         games = games.merge(
             away_nonqb_fum[['game_id', 'away_pass_nonqb_fumble_epa', 'away_rush_nonqb_fumble_epa']],
+            on='game_id',
+            how='left'
+        )
+        ## merge play counts ##
+        games = games.merge(
+            home_plays[['game_id', 'home_pass_plays', 'home_rush_plays', 'home_st_plays']],
+            on='game_id',
+            how='left'
+        )
+        games = games.merge(
+            away_plays[['game_id', 'away_pass_plays', 'away_rush_plays', 'away_st_plays']],
             on='game_id',
             how='left'
         )
