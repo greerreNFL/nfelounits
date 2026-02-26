@@ -32,4 +32,5 @@ venv/
 
 # AI
 .cursor/
+.claude/
 CLAUDE.md
